@@ -2,5 +2,6 @@
 #define __MEMORY_H__
 
 void * alloc(unsigned long);
+void gc();
 
 #endif
