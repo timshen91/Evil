@@ -1,6 +1,6 @@
 all:
-	gcc -Wall -g *.c -o yaScheme
+	gcc -Wall -g *.c -o Evil
 clean :
-	rm -f yaScheme
+	rm -f Evil
 
 .PHONY : all clean
