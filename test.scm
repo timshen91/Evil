@@ -99,3 +99,4 @@
        %--lambda)))
 
 (define interactive-spec (make-fluid))
+(define a +3-i)

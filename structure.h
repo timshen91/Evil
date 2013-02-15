@@ -1,6 +1,8 @@
 #ifndef __STRUCTURE_H__
 #define __STRUCTURE_H__
 
+#include <stdint.h>
+
 enum NodeType {
 	SYMBOL,
 	PAIR,
@@ -18,33 +20,22 @@ typedef struct Node {
 			struct Node * a;
 			struct Node * b;
 		};
-		unsigned long dscr;
+		size_t len;
+		unsigned long lit;
+		unsigned long sym;
 	};
 } Node;
-
-typedef struct Integer {
-	int sign;
-	unsigned long len;
-} Integer;
-
-typedef struct Rational { // Two compact Integer
-} Rational;
-
-typedef struct Real {
-	int sign;
-	unsigned long offset;
-	unsigned long len;
-} Real;
 
 typedef struct Complex { // Two compact Real
 } Complex;
 
 Node * newSymbol(const char * s);
-Node * newVector(int len);
-Node * newStrLit(const char * s, int len);
+Node * newVector(size_t len);
+Node * newStrLit(const char * s, size_t len);
 Node * newBool(int b);
 Node * newChar(char ch);
-Node * newComplex();
+Node * newComplex(const char * a, const char * b, int radix);
 Node * cons(Node * a, Node * b);
+Node * polar2Cart(Node * a);
 
 #endif

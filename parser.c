@@ -30,7 +30,7 @@ static void printNode(Node * node) {
 	switch (node->type) {
 	case SYMBOL:
 		DUMP("temp");
-		printf("%s", symToStr(node->dscr));
+		printf("%s", symToStr(node->sym));
 		break;
 	case PAIR: {
 		DUMP("temp");
@@ -40,19 +40,19 @@ static void printNode(Node * node) {
 				if (now->a == NULL) {
 					printf("()");
 				} else {
-					if (now->a->dscr == getSymbol("quote")) {
+					if (now->a->sym == getSymbol("quote")) {
 						printf("'");
 						printNode(now->b->a);
-					} else if (now->a->dscr == getSymbol("unquote")) {
+					} else if (now->a->sym == getSymbol("unquote")) {
 						printf(",");
-						if (now->b->a->type == SYMBOL && symToStr(now->b->a->dscr)[0] == '@') {
+						if (now->b->a->type == SYMBOL && symToStr(now->b->a->sym)[0] == '@') {
 							printf(" ");
 						}
 						printNode(now->b->a);
-					} else if (now->a->dscr == getSymbol("quasiquote")) {
+					} else if (now->a->sym == getSymbol("quasiquote")) {
 						printf("`");
 						printNode(now->b->a);
-					} else if (now->a->dscr == getSymbol("unquote-splicing")) {
+					} else if (now->a->sym == getSymbol("unquote-splicing")) {
 						printf(",@");
 						printNode(now->b->a);
 					} else {
@@ -77,9 +77,9 @@ static void printNode(Node * node) {
 		DUMP("temp");
 			int i;
 			printf("#(");
-			for (i = 0; i < node->dscr; i++) {
+			for (i = 0; i < node->len; i++) {
 				printNode(((Node **)(node + 1))[i]);
-				if (i + 1 < node->dscr) {
+				if (i + 1 < node->len) {
 					printf(" ");
 				}
 			}
@@ -87,7 +87,7 @@ static void printNode(Node * node) {
 		}
 	case BOOLLIT:
 		DUMP("temp");
-		printf("%s", (node->dscr) ? "#t" : "#f");
+		printf("%s", (node->lit) ? "#t" : "#f");
 		break;
 	case NUMLIT:
 		DUMP("temp");
@@ -95,13 +95,13 @@ static void printNode(Node * node) {
 		break;
 	case CHARLIT:
 		DUMP("temp");
-		printf("%c", (char)node->dscr);
+		printf("%c", (char)node->lit);
 		break;
 	case STRLIT: {
 		DUMP("temp");
 			printf("\"");
 			int i;
-			for (i = 0; i < node->dscr; i++) {
+			for (i = 0; i < node->len; i++) {
 				printf("%c", ((char *)(node + 1))[i]);
 			}
 			printf("\"");
@@ -110,49 +110,8 @@ static void printNode(Node * node) {
 	}
 }
 
-static Node * getUreal(const char ** ret, const char * s, int dec) {
-	return NULL;
-}
-
-static Node * string2num(int a, const char * b, int c, const char * d, int e) {
-	return NULL;
-}
-
-static Node * nextNum(const char * s, int radix, int exact) {
-	if (radix != 2 && radix != 8 && radix != 10 && radix != 16) {
-		radix = 10;
-	}
-	if (strcmp(s, "+i") == 0) {
-		return string2num(1, "0", 1, "1", 1);
-	} else if (strcmp(s, "-i")) {
-		return string2num(1, "0", -1, "1", 1);
-	}
-	int sign = 1;
-	int i = 0;
-	if (s[0] == '+') {
-		sign = 1;
-		i++;
-	} else if (s[0] == '-') {
-		sign = -1;
-		i++;
-	}
-	const char * firstEnd;
-	Node * first = getUreal(&firstEnd, s + i, radix == 10);
-	const char * secondEnd;
-	if (*firstEnd == '@') {
-		Node * second = getUreal(&secondEnd, firstEnd + 1, radix == 10);
-	} else if (*firstEnd == '+' || *firstEnd == '-') {
-		Node * second = getUreal(&secondEnd, firstEnd + 1, radix == 10);
-		if (*secondEnd != 'i') {
-			return NULL;
-		}
-	} else if (*firstEnd == 'i') {
-		if (i == 0) {
-			return NULL;
-		}
-		//return newComplex(
-	}
-	return NULL;
+static int isExpo(char ch) {
+	return ch == 'e' || ch == 's' || ch == 'f' || ch == 'd' || ch == 'l';
 }
 
 static int isSpec(char ch) {
@@ -163,6 +122,136 @@ static int isSpec(char ch) {
 		}
 	}
 	return 0;
+}
+
+static const char * getInteger(const char * s) {
+	if (!isdigit(*s)) {
+		return s;
+	}
+	while (isdigit(*s)) {
+		s++;
+	}
+	while (*s == '#') {
+		s++;
+	}
+	return s;
+}
+
+static const char * getReal(char * ret, const char * s, int dec) {
+	const char * cur = s;
+	const char * t;
+	ret[0] = '\0';
+	if (*cur == '+' || *cur == '-') {
+		cur++;
+	}
+	t = cur;
+	if ((cur = getInteger(cur)) == t) {
+		goto decimal;
+	}
+	if (*cur == '/') {
+		cur++;
+		t = cur;
+		if ((cur = getInteger(cur)) == t) {
+			goto decimal;
+		}
+	}
+	goto out;
+decimal:
+	if (!dec) {
+		cur = s;
+		goto out;
+	}
+	cur = s;
+	t = cur;
+	cur = getInteger(cur);
+	if (cur == t) {
+		if (*cur != '.') {
+			cur = s;
+			goto out;
+		}
+		cur++;
+		t = cur;
+		if ((cur = getInteger(cur)) == t) {
+			cur = s;
+			goto out;
+		}
+	} else {
+		while (isdigit(*cur)) {
+			cur++;
+		}
+		if (*cur == '.') {
+			cur = getInteger(cur);
+		} else if (*cur == '#') {
+			while (*cur == '#') {
+				cur++;
+			}
+			if (*cur != '.') {
+				cur = s;
+				goto out;
+			}
+			while (*cur == '#') {
+				cur++;
+			}
+		}
+	}
+	if (isExpo(*cur)) {
+		cur++;
+	} else {
+		goto out;
+	}
+	if (*cur == '+' || *cur == '-') {
+		cur++;
+	}
+	t = cur;
+	if ((cur = getInteger(cur)) != t) {
+		cur = s;
+		goto out;
+	}
+out:
+	memcpy(ret, s, cur - s);
+	ret[cur - s] = '\0';
+	return cur;
+}
+
+static Node * nextNum(const char * s, int radix, int exact) {
+	if (radix != 2 && radix != 8 && radix != 10 && radix != 16) {
+		radix = 10;
+	}
+	if (strcmp(s, "+i") == 0) {
+		return newComplex("0", "1", 2);
+	} else if (strcmp(s, "-i") == 0) {
+		return newComplex("0", "-1", 2);
+	}
+	char a[4096], b[4096];
+	a[0] = 0;
+	b[0] = 0;
+	const char * t = s;
+	s = getReal(a, s, radix == 10);
+	if (t == s) {
+		return NULL;
+	}
+	if (*t == '+' || *t == '-') {
+		if (*s == 'i') {
+			return newComplex("0", a, radix);
+		}
+	}
+	if (*s == '@') {
+		s++;
+		t = s;
+		s = getReal(b, s, radix == 10);
+		if (t == s) {
+			return NULL;
+		}
+		return polar2Cart(newComplex(a, b, radix));
+	} else if (*s == '+' || *s == '-') {
+		t = s;
+		s = getReal(b, s, radix == 10);
+		return newComplex(a, b, radix);
+	}
+	if (*s != '\0') {
+		return NULL;
+	}
+	return newComplex(a, "0", radix);
 }
 
 Token nextToken() {
@@ -248,26 +337,28 @@ Token nextToken() {
 		} else if (ch == 'e' || ch == 'i' || ch == 'b' || ch == 'o' || ch == 'd' || ch == 'x') {
 			int radix = -1;
 			int exact = -1;
-			switch (ch) {
-			case 'b':
-				radix = 2;
-				break;
-			case 'o':
-				radix = 8;
-				break;
-			case 'd':
-				radix = 10;
-				break;
-			case 'x':
-				radix = 16;
-				break;
-			case 'e':
-				exact = 1;
-				break;
-			case 'i':
-				exact = 0;
-				break;
+#define switch_ch \
+			switch (ch) {\
+			case 'b':\
+				radix = 2;\
+				break;\
+			case 'o':\
+				radix = 8;\
+				break;\
+			case 'd':\
+				radix = 10;\
+				break;\
+			case 'x':\
+				radix = 16;\
+				break;\
+			case 'e':\
+				exact = 1;\
+				break;\
+			case 'i':\
+				exact = 0;\
+				break;\
 			}
+			switch_ch;
 			ch = getchar();
 			if (ch == '#') {
 				ch = getchar();
@@ -295,26 +386,7 @@ Token nextToken() {
 					err = LEX;
 					return ret;
 				}
-				switch (ch) {
-				case 'b':
-					radix = 2;
-					break;
-				case 'o':
-					radix = 8;
-					break;
-				case 'd':
-					radix = 10;
-					break;
-				case 'x':
-					radix = 16;
-					break;
-				case 'e':
-					exact = 1;
-					break;
-				case 'i':
-					exact = 0;
-					break;
-				}
+				switch_ch;
 				ch = getchar();
 			}
 			while (isdigit(ch) || isalpha(ch) || isSpec(ch)) {

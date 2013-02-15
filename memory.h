@@ -1,7 +1,9 @@
 #ifndef __MEMORY_H__
 #define __MEMORY_H__
 
-void * alloc(unsigned long);
+#include <stddef.h>
+
+void * alloc(size_t);
 void gc();
 
 #endif
