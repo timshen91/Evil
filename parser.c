@@ -30,42 +30,52 @@ static void printNode(Node * node) {
 	switch (node->type) {
 	case SYMBOL:
 		DUMP("temp");
-		printf("%s", symToStr(node->sym));
+		printf("%s", symToStr(((SymNode *)node)->sym));
 		break;
 	case PAIR: {
 		DUMP("temp");
-			Node * now = node;
+			PairNode * now = (PairNode *)node;
 			if (now != NULL) {
 				DUMP("temp");
 				if (now->a == NULL) {
 					printf("()");
 				} else {
-					if (now->a->sym == getSymbol("quote")) {
-						printf("'");
-						printNode(now->b->a);
-					} else if (now->a->sym == getSymbol("unquote")) {
-						printf(",");
-						if (now->b->a->type == SYMBOL && symToStr(now->b->a->sym)[0] == '@') {
-							printf(" ");
-						}
-						printNode(now->b->a);
-					} else if (now->a->sym == getSymbol("quasiquote")) {
-						printf("`");
-						printNode(now->b->a);
-					} else if (now->a->sym == getSymbol("unquote-splicing")) {
-						printf(",@");
-						printNode(now->b->a);
-					} else {
-						printf("(");
-						for (now = node; now != NULL && now->type == PAIR; now = now->b) {
-							printNode(now->a);
-							if (now->b != NULL) {
+					if (now->a->type == SYMBOL && now->b != NULL && now->b->type == PAIR) {
+						SymNode * a = (SymNode *)now->a;
+						PairNode * b = (PairNode *)now->b;
+						if (a->sym == getSymbol("quote")) {
+							printf("'");
+							printNode(b->a);
+						} else if (a->sym == getSymbol("unquote")) {
+							printf(",");
+							if (b->a->type == SYMBOL && b->a->type == SYMBOL && symToStr(((SymNode *)b->a)->sym)[0] == '@') {
 								printf(" ");
 							}
+							printNode(b->a);
+						} else if (a->sym == getSymbol("quasiquote")) {
+							printf("`");
+							printNode(b->a);
+						} else if (a->sym == getSymbol("unquote-splicing")) {
+							printf(",@");
+							printNode(b->a);
+						} else {
+							goto there;
 						}
-						if (now != NULL) {
-							printf(". ");
-							printNode(now->b);
+					} else {
+there:
+						printf("(");
+						while (1) {
+							printNode(now->a);
+							if (now->b == NULL) {
+								break;
+							}
+							printf(" ");
+							if (now->b->type != PAIR) {
+								printf(". ");
+								printNode(now->b);
+								break;
+							}
+							now = (PairNode *)now->b;
 						}
 						printf(")");
 					}
@@ -74,12 +84,13 @@ static void printNode(Node * node) {
 		}
 		break;
 	case VECTOR: {
-		DUMP("temp");
+			DUMP("temp");
 			int i;
+			VecNode * now = (VecNode *)node;
 			printf("#(");
-			for (i = 0; i < node->len; i++) {
-				printNode(((Node **)(node + 1))[i]);
-				if (i + 1 < node->len) {
+			for (i = 0; i < now->len; i++) {
+				printNode(((Node **)(now + 1))[i]);
+				if (i + 1 < now->len) {
 					printf(" ");
 				}
 			}
@@ -87,7 +98,7 @@ static void printNode(Node * node) {
 		}
 	case BOOLLIT:
 		DUMP("temp");
-		printf("%s", (node->lit) ? "#t" : "#f");
+		printf("%s", (((BoolNode *)node)->value) ? "#t" : "#f");
 		break;
 	case NUMLIT:
 		DUMP("temp");
@@ -95,23 +106,20 @@ static void printNode(Node * node) {
 		break;
 	case CHARLIT:
 		DUMP("temp");
-		printf("%c", (char)node->lit);
+		printf("%c", ((CharNode *)node)->value);
 		break;
 	case STRLIT: {
-		DUMP("temp");
+			DUMP("temp");
 			printf("\"");
 			int i;
-			for (i = 0; i < node->len; i++) {
-				printf("%c", ((char *)(node + 1))[i]);
+			StrLitNode * now = (StrLitNode *)node;
+			for (i = 0; i < now->len; i++) {
+				printf("%c", ((char *)(now + 1))[i]);
 			}
 			printf("\"");
 		}
 		break;
 	}
-}
-
-static int isExpo(char ch) {
-	return ch == 'e' || ch == 's' || ch == 'f' || ch == 'd' || ch == 'l';
 }
 
 static int isSpec(char ch) {
@@ -122,136 +130,6 @@ static int isSpec(char ch) {
 		}
 	}
 	return 0;
-}
-
-static const char * getInteger(const char * s) {
-	if (!isdigit(*s)) {
-		return s;
-	}
-	while (isdigit(*s)) {
-		s++;
-	}
-	while (*s == '#') {
-		s++;
-	}
-	return s;
-}
-
-static const char * getReal(char * ret, const char * s, int dec) {
-	const char * cur = s;
-	const char * t;
-	ret[0] = '\0';
-	if (*cur == '+' || *cur == '-') {
-		cur++;
-	}
-	t = cur;
-	if ((cur = getInteger(cur)) == t) {
-		goto decimal;
-	}
-	if (*cur == '/') {
-		cur++;
-		t = cur;
-		if ((cur = getInteger(cur)) == t) {
-			goto decimal;
-		}
-	}
-	goto out;
-decimal:
-	if (!dec) {
-		cur = s;
-		goto out;
-	}
-	cur = s;
-	t = cur;
-	cur = getInteger(cur);
-	if (cur == t) {
-		if (*cur != '.') {
-			cur = s;
-			goto out;
-		}
-		cur++;
-		t = cur;
-		if ((cur = getInteger(cur)) == t) {
-			cur = s;
-			goto out;
-		}
-	} else {
-		while (isdigit(*cur)) {
-			cur++;
-		}
-		if (*cur == '.') {
-			cur = getInteger(cur);
-		} else if (*cur == '#') {
-			while (*cur == '#') {
-				cur++;
-			}
-			if (*cur != '.') {
-				cur = s;
-				goto out;
-			}
-			while (*cur == '#') {
-				cur++;
-			}
-		}
-	}
-	if (isExpo(*cur)) {
-		cur++;
-	} else {
-		goto out;
-	}
-	if (*cur == '+' || *cur == '-') {
-		cur++;
-	}
-	t = cur;
-	if ((cur = getInteger(cur)) != t) {
-		cur = s;
-		goto out;
-	}
-out:
-	memcpy(ret, s, cur - s);
-	ret[cur - s] = '\0';
-	return cur;
-}
-
-static Node * nextNum(const char * s, int radix, int exact) {
-	if (radix != 2 && radix != 8 && radix != 10 && radix != 16) {
-		radix = 10;
-	}
-	if (strcmp(s, "+i") == 0) {
-		return newComplex("0", "1", 2);
-	} else if (strcmp(s, "-i") == 0) {
-		return newComplex("0", "-1", 2);
-	}
-	char a[4096], b[4096];
-	a[0] = 0;
-	b[0] = 0;
-	const char * t = s;
-	s = getReal(a, s, radix == 10);
-	if (t == s) {
-		return NULL;
-	}
-	if (*t == '+' || *t == '-') {
-		if (*s == 'i') {
-			return newComplex("0", a, radix);
-		}
-	}
-	if (*s == '@') {
-		s++;
-		t = s;
-		s = getReal(b, s, radix == 10);
-		if (t == s) {
-			return NULL;
-		}
-		return polar2Cart(newComplex(a, b, radix));
-	} else if (*s == '+' || *s == '-') {
-		t = s;
-		s = getReal(b, s, radix == 10);
-		return newComplex(a, b, radix);
-	}
-	if (*s != '\0') {
-		return NULL;
-	}
-	return newComplex(a, "0", radix);
 }
 
 Token nextToken() {
@@ -278,7 +156,7 @@ Token nextToken() {
 		}
 		buff[len] = '\0';
 		Node * num;
-		if ((num = nextNum(buff, -1, -1)) == NULL) {
+		if ((num = newComplex(buff)) == NULL) {
 			if (strcmp(buff, ".") == 0) {
 				ret.type = PERIOD;
 			} else {
@@ -326,6 +204,7 @@ Token nextToken() {
 		}
 	} else if (ch == '#') {
 		DUMP("#");
+		buff[len++] = ch;
 		ch = getchar();
 		ret.type = LIT;
 		if (ch == 't') {
@@ -335,66 +214,12 @@ Token nextToken() {
 			ret.lit = newBool(0);
 			ch = getchar();
 		} else if (ch == 'e' || ch == 'i' || ch == 'b' || ch == 'o' || ch == 'd' || ch == 'x') {
-			int radix = -1;
-			int exact = -1;
-#define switch_ch \
-			switch (ch) {\
-			case 'b':\
-				radix = 2;\
-				break;\
-			case 'o':\
-				radix = 8;\
-				break;\
-			case 'd':\
-				radix = 10;\
-				break;\
-			case 'x':\
-				radix = 16;\
-				break;\
-			case 'e':\
-				exact = 1;\
-				break;\
-			case 'i':\
-				exact = 0;\
-				break;\
-			}
-			switch_ch;
-			ch = getchar();
-			if (ch == '#') {
-				ch = getchar();
-				switch (ch) {
-				case 'e':
-				case 'i':
-					if (exact != -1) {
-						error("duplicated exactness requirement");
-						err = LEX;
-						return ret;
-					}
-					break;
-				case 'b':
-				case 'o':
-				case 'd':
-				case 'x':
-					if (radix != -1) {
-						error("duplicated exactness requirement");
-						err = LEX;
-						return ret;
-					}
-					break;
-				default:
-					error("unknown exactness or radix");
-					err = LEX;
-					return ret;
-				}
-				switch_ch;
-				ch = getchar();
-			}
-			while (isdigit(ch) || isalpha(ch) || isSpec(ch)) {
+			while (!isspace(ch)) {
 				buff[len++] = ch;
 				ch = getchar();
 			}
 			buff[len] = '\0';
-			if ((ret.lit = nextNum(buff, radix, exact)) == NULL) {
+			if ((ret.lit = newComplex(buff)) == NULL) {
 				error("invalid number");
 				err = LEX;
 				return ret;
@@ -443,8 +268,8 @@ Node * parse() {
 	err = OK;
 	switch (tok.type) {
 	case LPAREN: {
-			Node * ret;
-			Node ** last = &ret; 
+			PairNode * ret;
+			Node ** last = (Node **)&ret; 
 			while (1) {
 				Node * now = parse();
 				if (err != OK) {
@@ -460,9 +285,9 @@ Node * parse() {
 					return NULL;
 				}
 				*last = cons(now, NULL);
-				last = &(*last)->b;
+				last = &(*(PairNode **)last)->b;
 			}
-			return ret;
+			return (Node *)ret;
 		}
 	case RPAREN:
 		err = EOLIST;
