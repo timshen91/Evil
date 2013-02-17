@@ -3,9 +3,10 @@
 #include "memory.h"
 #include "symbol.h"
 #include "structure.h"
+#include "error.h"
 
 typedef struct Real {
-	size_t len;
+	unsigned int len;
 	int sign;
 	unsigned long offset;
 } Real;
@@ -13,18 +14,18 @@ typedef struct Real {
 Node * newSymbol(const char * s) {
 	SymNode * ret = alloc(sizeof(SymNode));
 	ret->type = SYMBOL;
-	ret->sym = getSymbol(s);
+	ret->sym = getSym(s);
 	return (Node *)ret;
 }
 
-Node * newVector(size_t len) {
+Node * newVector(unsigned int len) {
 	VecNode * ret = alloc(sizeof(VecNode) + len * sizeof(Node *));
 	ret->type = VECTOR;
 	ret->len = len;
 	return (Node *)ret;
 }
 
-Node * newStrLit(const char * s, size_t len) {
+Node * newStrLit(const char * s, unsigned int len) {
 	StrLitNode * ret = alloc(sizeof(StrLitNode) + len);
 	memcpy(ret + 1, s, len);
 	ret->type = STRLIT;
@@ -46,12 +47,30 @@ Node * newChar(char ch) {
 	return (Node *)ret;
 }
 
-Node * cons(Node * a, Node * b) {
+Node * newPair(Node * a, Node * b) {
 	PairNode * ret = alloc(sizeof(PairNode));
-	ret->type = PAIR;
+	if (b == NULL || b->type == LIST) {
+		ret->type = LIST;
+	} else {
+		ret->type = PAIR;
+	}
 	ret->a = a;
 	ret->b = b;
 	return (Node *)ret;
+}
+
+Node * car(Node * l) {
+	if (l->type != PAIR || l->type != LIST) {
+		abort();
+	}
+	return ((PairNode *)l)->a;
+}
+
+Node * cdr(Node * l) {
+	if (l->type != PAIR || l->type != LIST) {
+		abort();
+	}
+	return ((PairNode *)l)->b;
 }
 
 static int isExpo(char ch) {
@@ -71,10 +90,9 @@ static const char * getIntStr(const char * s) {
 	return s;
 }
 
-static const char * getRealStr(char * ret, const char * s, int dec) {
+static const char * getRealStr(const char * s, int dec) {
 	const char * cur = s;
 	const char * t;
-	ret[0] = '\0';
 	if (*cur == '+' || *cur == '-') {
 		cur++;
 	}
@@ -89,11 +107,11 @@ static const char * getRealStr(char * ret, const char * s, int dec) {
 			goto decimal;
 		}
 	}
-	goto out;
+	return cur;
 decimal:
 	if (!dec) {
 		cur = s;
-		goto out;
+		return cur;
 	}
 	cur = s;
 	t = cur;
@@ -101,13 +119,13 @@ decimal:
 	if (cur == t) {
 		if (*cur != '.') {
 			cur = s;
-			goto out;
+			return cur;
 		}
 		cur++;
 		t = cur;
 		if ((cur = getIntStr(cur)) == t) {
 			cur = s;
-			goto out;
+			return cur;
 		}
 	} else {
 		while (isdigit(*cur)) {
@@ -121,7 +139,7 @@ decimal:
 			}
 			if (*cur != '.') {
 				cur = s;
-				goto out;
+				return cur;
 			}
 			while (*cur == '#') {
 				cur++;
@@ -131,7 +149,7 @@ decimal:
 	if (isExpo(*cur)) {
 		cur++;
 	} else {
-		goto out;
+		return cur;
 	}
 	if (*cur == '+' || *cur == '-') {
 		cur++;
@@ -139,11 +157,8 @@ decimal:
 	t = cur;
 	if ((cur = getIntStr(cur)) != t) {
 		cur = s;
-		goto out;
+		return cur;
 	}
-out:
-	memcpy(ret, s, cur - s);
-	ret[cur - s] = '\0';
 	return cur;
 }
 
@@ -153,7 +168,8 @@ Node * makeComplex(const char * a, const char * b, int radix) { // TODO
 	return (Node *)ret;
 }
 
-Node * newComplex(const char * s) {
+Node * newComplex(const char * old) {
+	const char * s = old;
 	int radix = -1;
 	int exact = -1;
 	if (*s == '#') {
@@ -214,13 +230,13 @@ Node * newComplex(const char * s) {
 		return makeComplex("0", "-1", 2);
 	}
 	char a[4096], b[4096];
-	a[0] = 0;
-	b[0] = 0;
 	const char * t = s;
-	s = getRealStr(a, s, radix == 10);
+	s = getRealStr(s, radix == 10);
 	if (t == s) {
 		return NULL;
 	}
+	memcpy(a, old, s - old);
+	a[s - old] = '\0';
 	if (*t == '+' || *t == '-') {
 		if (*s == 'i') {
 			return makeComplex("0", a, radix);
@@ -229,15 +245,26 @@ Node * newComplex(const char * s) {
 	if (*s == '@') {
 		s++;
 		t = s;
-		s = getRealStr(b, s, radix == 10);
+		s = getRealStr(s, radix == 10);
 		if (t == s) {
 			return NULL;
 		}
+		memcpy(b, old, s - old);
+		b[s - old] = '\0';
 		return polar2Cart(makeComplex(a, b, radix));
 	} else if (*s == '+' || *s == '-') {
 		t = s;
-		s = getRealStr(b, s, radix == 10);
-		return makeComplex(a, b, radix);
+		s = getRealStr(s, radix == 10);
+		if (t != s) {
+			memcpy(b, old, s - old);
+			b[s - old] = '\0';
+			return makeComplex(a, b, radix);
+		} else {
+			if (*(s + 1) != 'i') {
+				return NULL;
+			}
+			return makeComplex(a, (*s == '+') ? "1" : "-1", radix);
+		}
 	}
 	if (*s != '\0') {
 		return NULL;

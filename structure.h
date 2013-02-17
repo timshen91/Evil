@@ -1,16 +1,19 @@
 #ifndef __STRUCTURE_H__
 #define __STRUCTURE_H__
 
-#include <stdint.h>
+//#define DUMP(s) printf("%s : %d : %s\n", __FILE__, __LINE__, s)
+#define DUMP(s) 
 
 enum NodeType {
 	SYMBOL,
 	PAIR,
+	LIST,
 	VECTOR,
 	BOOLLIT,
 	NUMLIT,
 	CHARLIT,
 	STRLIT,
+	LAMBDA,
 };
 
 typedef struct Node {
@@ -30,12 +33,12 @@ typedef struct PairNode {
 
 typedef struct VecNode {
 	enum NodeType type;
-	size_t len;
+	unsigned int len;
 } VecNode;
 
 typedef struct StrLitNode {
 	enum NodeType type;
-	size_t len;
+	unsigned int len;
 } StrLitNode;
 
 typedef struct BoolNode {
@@ -52,13 +55,21 @@ typedef struct ComplexNode {
 	enum NodeType type;
 } ComplexNode;
 
+typedef struct LambdaNode {
+	enum NodeType type;
+	unsigned int argn;
+} LambdaNode;
+
 Node * newSymbol(const char * s);
-Node * newVector(size_t len);
-Node * newStrLit(const char * s, size_t len);
+Node * newVector(unsigned int len);
+Node * newStrLit(const char * s, unsigned int len);
 Node * newBool(int b);
 Node * newChar(char ch);
 Node * newComplex(const char * s);
-Node * cons(Node * a, Node * b);
+Node * newPair(Node * a, Node * b); // cons
 Node * polar2Cart(Node * a);
+
+Node * car(Node *);
+Node * cdr(Node *);
 
 #endif
