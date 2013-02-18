@@ -3,6 +3,7 @@
 
 #include <setjmp.h>
 
+#define error(s) { fprintf(stderr, "%s\n", s); }
 #define abort() longjmp(jmpBuff, 1)
 
 jmp_buf jmpBuff;

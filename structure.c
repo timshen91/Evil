@@ -1,4 +1,5 @@
 #include <string.h>
+#include <assert.h>
 #include <ctype.h>
 #include "memory.h"
 #include "symbol.h"
@@ -47,7 +48,7 @@ Node * newChar(char ch) {
 	return (Node *)ret;
 }
 
-Node * newPair(Node * a, Node * b) {
+Node * cons(Node * a, Node * b) {
 	PairNode * ret = alloc(sizeof(PairNode));
 	if (b == NULL || b->type == LIST) {
 		ret->type = LIST;
@@ -57,20 +58,6 @@ Node * newPair(Node * a, Node * b) {
 	ret->a = a;
 	ret->b = b;
 	return (Node *)ret;
-}
-
-Node * car(Node * l) {
-	if (l->type != PAIR || l->type != LIST) {
-		abort();
-	}
-	return ((PairNode *)l)->a;
-}
-
-Node * cdr(Node * l) {
-	if (l->type != PAIR || l->type != LIST) {
-		abort();
-	}
-	return ((PairNode *)l)->b;
 }
 
 static int isExpo(char ch) {
@@ -274,4 +261,49 @@ Node * newComplex(const char * old) {
 
 Node * polar2Cart(Node * a) { // TODO
 	return a;
+}
+
+int equal(Node * a, Node * b) {
+	if (a == NULL || b == NULL) {
+		return a == b;
+	}
+	if (a->type != b->type) {
+		return 0;
+	}
+	switch (a->type) {
+		case SYMBOL:
+			return toSym(a)->sym == toSym(b)->sym;
+		case LIST:
+		case PAIR:
+			return equal(toPair(a)->a, toPair(b)->a) && equal(toPair(a)->b, toPair(b)->b);
+		case VECTOR: {
+			if (toVec(a)->len != toVec(b)->len) {
+				return 0;
+			}
+			int i;
+			Node ** va = (Node **)(toVec(a) + 1);
+			Node ** vb = (Node **)(toVec(b) + 1);
+			for (i = 0; i < toVec(a)->len; i++) {
+				if (!equal(va[i], vb[i])) {
+					return 0;
+				}
+			}
+			return 1;
+		}
+		case BOOLLIT:
+			return toBool(a)->value == toBool(b)->value;
+		case NUMLIT:
+			return 0; // TODO
+		case CHARLIT:
+			return toChar(a)->value == toChar(b)->value;
+		case STRLIT:
+			if (toString(a)->len != toString(b)->len) {
+				return 0;
+			}
+			return memcmp((const char *)(toString(a) + 1), (const char *)(toString(b) + 1), toString(a)->len) == 0;
+		case LAMBDA:
+			return a == b;
+	}
+	assert(0);
+	return 0;
 }

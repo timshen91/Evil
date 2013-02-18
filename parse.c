@@ -7,8 +7,6 @@
 #include "structure.h"
 #include "error.h"
 
-#define error(s) { fprintf(stderr, "%s\n", s); }
-
 static int isSpec(char ch) {
 	const char * a;
 	for (a = "!$%&*+-./:<=>?@^_~"; *a != '\0'; a++) {
@@ -152,7 +150,7 @@ Node * parseList() {
 		return a;
 	}
 	Node * b = parseList();
-	return newPair(a, b);
+	return cons(a, b);
 }
 
 int depth = 0;
@@ -203,7 +201,7 @@ Node * parse() {
 				default:
 					assert(0);
 			}
-			return newPair(sym, newPair(now, NULL));
+			return cons(sym, cons(now, NULL));
 		}
 		case HASHLPAREN: {
 			Node * v[4096]; // FIXME

@@ -27,6 +27,7 @@ typedef struct SymNode {
 
 typedef struct PairNode {
 	enum NodeType type;
+	unsigned long len;
 	struct Node * a;
 	struct Node * b;
 } PairNode;
@@ -66,10 +67,19 @@ Node * newStrLit(const char * s, unsigned int len);
 Node * newBool(int b);
 Node * newChar(char ch);
 Node * newComplex(const char * s);
-Node * newPair(Node * a, Node * b); // cons
 Node * polar2Cart(Node * a);
 
-Node * car(Node *);
-Node * cdr(Node *);
+
+Node * cons(Node * a, Node * b);
+int equal(Node * a, Node * b);
+
+#define toPair(p) ((PairNode *)(p))
+#define toSym(p) ((SymNode *)(p))
+#define toVec(p) ((VecNode *)(p))
+#define toBool(p) ((BoolNode *)(p))
+#define toNum(p) ((ComplexNode *)(p))
+#define toChar(p) ((CharNode *)(p))
+#define toString(p) ((StrLitNode *)(p))
+#define toLambda(p) ((LambdaNode *)(p))
 
 #endif
