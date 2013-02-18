@@ -1,5 +1,5 @@
 all:
-	gcc -Wall -g *.c -o Evil
+	gcc -std=c99 -Wall -g *.c -o Evil
 clean :
 	rm -f Evil
 

@@ -1,10 +1,10 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
 #include "parse.h"
 #include "structure.h"
+#include "symbol.h"
 #include "error.h"
 
 static int isSpec(char ch) {
@@ -167,7 +167,7 @@ Node * parse() {
 			}
 			depth--;
 			endOfList = 1;
-			return NULL;
+			return &empty;
 		case LIT:
 			return tok.lit;
 		case PERIOD: {
@@ -201,7 +201,7 @@ Node * parse() {
 				default:
 					assert(0);
 			}
-			return cons(sym, cons(now, NULL));
+			return LIST2(sym, now);
 		}
 		case HASHLPAREN: {
 			Node * v[4096]; // FIXME
@@ -212,10 +212,9 @@ Node * parse() {
 				v[len++] = now;
 			}
 			Node * ret = newVector(len);
-			memcpy(ret + 1, v, sizeof(Node *) * len);
+			memcpy(toVec(ret)->vec, v, sizeof(Node *) * len);
 			return ret;
 		}
 	}
-	printf("%d\n", tok.type);
 	assert(0);
 }

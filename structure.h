@@ -1,19 +1,24 @@
 #ifndef __STRUCTURE_H__
 #define __STRUCTURE_H__
 
-//#define DUMP(s) printf("%s : %d : %s\n", __FILE__, __LINE__, s)
-#define DUMP(s) 
+#include <stdbool.h>
 
 enum NodeType {
 	SYMBOL,
 	PAIR,
 	LIST,
+	EMPTY,
+	DUMMY,
+	LISTELL,
 	VECTOR,
+	VECTORELL,
 	BOOLLIT,
 	NUMLIT,
 	CHARLIT,
 	STRLIT,
 	LAMBDA,
+	OFFSET,
+	OFFSET_SLICE,
 };
 
 typedef struct Node {
@@ -35,16 +40,18 @@ typedef struct PairNode {
 typedef struct VecNode {
 	enum NodeType type;
 	unsigned int len;
+	Node * vec[];
 } VecNode;
 
 typedef struct StrLitNode {
 	enum NodeType type;
 	unsigned int len;
+	char str[];
 } StrLitNode;
 
 typedef struct BoolNode {
 	enum NodeType type;
-	char value;
+	bool value;
 } BoolNode;
 
 typedef struct CharNode {
@@ -59,19 +66,38 @@ typedef struct ComplexNode {
 typedef struct LambdaNode {
 	enum NodeType type;
 	unsigned int argn;
+	Node * body;
 } LambdaNode;
 
-Node * newSymbol(const char * s);
+typedef struct OffsetNode {
+	enum NodeType type;
+	unsigned int offset;
+} OffsetNode;
+
+typedef struct Rule {
+	Node * ptrn;
+	Node * tmpl;
+} Rule;
+
+typedef struct Macro {
+	unsigned int ruleLen;
+	Rule rules[];
+} Macro;
+
+Node empty;
+
+Node * newSymbol(const char *);
 Node * newVector(unsigned int len);
 Node * newStrLit(const char * s, unsigned int len);
-Node * newBool(int b);
+Node * newBool(bool b);
 Node * newChar(char ch);
 Node * newComplex(const char * s);
+Macro * newMacro(Node * lit, Node * ps, Node * ts);
+
+unsigned int length(Node * a);
 Node * polar2Cart(Node * a);
-
-
 Node * cons(Node * a, Node * b);
-int equal(Node * a, Node * b);
+bool equal(Node * a, Node * b);
 
 #define toPair(p) ((PairNode *)(p))
 #define toSym(p) ((SymNode *)(p))
@@ -81,5 +107,10 @@ int equal(Node * a, Node * b);
 #define toChar(p) ((CharNode *)(p))
 #define toString(p) ((StrLitNode *)(p))
 #define toLambda(p) ((LambdaNode *)(p))
+#define toOffset(p) ((OffsetNode *)(p))
+#define LIST1(a) cons((a), &empty)
+#define LIST2(a, b) cons((a), LIST1(b))
+#define LIST3(a, b, c) cons((a), LIST2((b), (c)))
+#define LIST4(a, b, c, d) cons((a), LIST3((b), (c), (d)))
 
 #endif
