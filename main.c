@@ -102,9 +102,6 @@ there:
 		case OFFSET:
 			printf("{OFFSET}");
 			break;
-		case OFFSET_SLICE:
-			printf("{OFFSET_SLICE}");
-			break;
 		case LISTELL:
 			printf("{LISTELL}");
 			break;

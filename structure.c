@@ -58,11 +58,6 @@ Node * cons(Node * a, Node * b) {
 	} else {
 		ret->type = PAIR;
 	}
-	if (b->type == PAIR || b->type == LIST) {
-		ret->len = toPair(b)->len + 1;
-	} else {
-		ret->len = 1;
-	}
 	ret->a = a;
 	ret->b = b;
 	return (Node *)ret;
@@ -271,15 +266,14 @@ Node * polar2Cart(Node * a) { // TODO
 	return a;
 }
 
-Node * newOffset(enum NodeType type, unsigned int offset) {
+Node * newOffset(unsigned int offset, unsigned int depth) {
 	OffsetNode * ret = alloc(sizeof(OffsetNode));
-	ret->type = type;
 	ret->offset = offset;
+	ret->depth = depth;
 	return (Node *)ret;
 }
 
 Node * newLambda(Node * formal, Node * body) { // TODO
-	
 	return NULL;
 }
 
@@ -292,6 +286,7 @@ static bool symInList(unsigned int sym, Node * l) {
 
 static unsigned int varn;
 static unsigned int var[4096];
+static unsigned int varDepth[4096];
 int compilePattern(Node * lit, Node ** pp) {
 	static int ellipsisDepth = 0;
 	Node * p = *pp;
@@ -305,9 +300,11 @@ int compilePattern(Node * lit, Node ** pp) {
 					}
 				}
 				if (i == varn) {
-					var[varn++] = toSym(p)->sym;
+					var[varn] = toSym(p)->sym;
+					varDepth[varn] = ellipsisDepth;
+					varn++;
 				}
-				*pp = newOffset((ellipsisDepth > 0) ? OFFSET_SLICE : OFFSET, i);
+				*pp = newOffset(i, ellipsisDepth);
 			}
 			break;
 		case PAIR:
@@ -330,6 +327,7 @@ int compilePattern(Node * lit, Node ** pp) {
 					if (ret) {
 						return -1;
 					}
+					cdr(p) = p;
 					cdr(p) = &empty;
 					toPair(p)->type = LISTELL;
 				} else {
@@ -382,7 +380,6 @@ int compilePattern(Node * lit, Node ** pp) {
 		case LISTELL:
 		case VECTORELL:
 		case OFFSET:
-		case OFFSET_SLICE:
 			assert(0);
 			break;
 	}
@@ -390,31 +387,38 @@ int compilePattern(Node * lit, Node ** pp) {
 }
 
 static int compileTemplate(Node ** tt) {
-	static bool nextIsEllpsis = false;
+	static bool ellipsisDepth = 0;
 	Node * t = *tt;
 	switch (t->type) {
 		case SYMBOL: {
+				if (isEllipsis(t)) {
+					return -1;
+				}
 				int i;
 				for (i = 0; i < varn; i++) {
 					if (var[i] == toSym(t)->sym) {
 						break;
 					}
 				}
-				if (i == varn && nextIsEllpsis) {
+				if (i < varn) {
+					*tt = newOffset(i, ellipsisDepth);
+				} else if (ellipsisDepth > 0) {
 					return -1;
 				}
-				*tt = newOffset(nextIsEllpsis ? OFFSET_SLICE : OFFSET, i);
 			}
 			break;
 		case PAIR:
 		case LIST: {
-				Node * next = cdr(t);
-				if (next->type == LIST && isEllipsis(car(next))) {
-					nextIsEllpsis = true;
-					cdr(t) = cdr(next);
+				if (car(t)->type == SYMBOL) {
+					ellipsisDepth = 0;
+					Node * next = cdr(t);
+					while (next->type == LIST && isEllipsis(car(next))) {
+						ellipsisDepth++;
+						next = cdr(next);
+					}
+					cdr(t) = next;
 				}
 				int ret = compileTemplate(&car(t));
-				nextIsEllpsis = false;
 				if (ret) {
 					return -1;
 				}
@@ -424,29 +428,21 @@ static int compileTemplate(Node ** tt) {
 			}
 			break;
 		case VECTOR: {
+				int i = 0;
 				int j = 0;
-				for (int i = 0; i < toVec(t)->len - 1; i++) {
-					if (!isEllipsis(toVec(t)->vec[i + 1])) {
-						nextIsEllpsis = true;
-						int ret = compileTemplate(&toVec(t)->vec[i]);
-						nextIsEllpsis = false;
-						if (ret) {
-							return -1;
+				while (i < toVec(t)->len) {
+					int k = i + 1;
+					if (toVec(t)->vec[i]->type == SYMBOL) {
+						while (k < toVec(t)->len && isEllipsis(toVec(t)->vec[k])) {
+							k++;
 						}
-						toVec(t)->vec[j++] = toVec(t)->vec[i];
-						i++;
-					} else {
-						if (compileTemplate(&toVec(t)->vec[i])) {
-							return -1;
-						}
-						toVec(t)->vec[j++] = toVec(t)->vec[i];
+						ellipsisDepth = k - i - 1;
 					}
-				}
-				if (toVec(t)->len > 0) {
-					if (compileTemplate(&toVec(t)->vec[toVec(t)->len - 1])) {
+					if (compileTemplate(&toVec(t)->vec[i])) {
 						return -1;
 					}
-					toVec(t)->vec[j++] = toVec(t)->vec[toVec(t)->len - 1];
+					toVec(t)->vec[j++] = toVec(t)->vec[i];
+					i = k;
 				}
 				toVec(t)->len = j;
 			}
@@ -463,7 +459,6 @@ static int compileTemplate(Node ** tt) {
 		case LISTELL:
 		case VECTORELL:
 		case OFFSET:
-		case OFFSET_SLICE:
 			assert(0);
 			break;
 	}

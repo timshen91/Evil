@@ -34,49 +34,55 @@ static int match(Node * p, Node * v) {
 		return 0;
 	} else if (p->type == OFFSET) {
 		DUMP("temp");
-		stack[0][top[0]++] = toOffset(p)->offset;
-		frame[toOffset(p)->offset] = v;
-	} else if (p->type == OFFSET_SLICE) {
 		unsigned int offset = toOffset(p)->offset;
-		if (sliceFrame[offset] == NULL) {
-			stack[1][top[1]++] = offset;
-			sliceFrame[offset] = sliceFrameLast[offset] = LIST1(v);
+		if (toOffset(p)->depth == 0) {
+			stack[0][top[0]++] = offset;
+			frame[offset] = v;
 		} else {
-			assert(cdr(sliceFrameLast[toOffset(p)->offset])->type == EMPTY);
-			sliceFrameLast[offset] = cdr(sliceFrameLast[offset]) = LIST1(v);
+			if (sliceFrame[offset] == NULL) {
+				stack[1][top[1]++] = offset;
+				sliceFrame[offset] = sliceFrameLast[offset] = LIST1(v);
+			} else {
+				assert(cdr(sliceFrameLast[offset])->type == EMPTY);
+				sliceFrameLast[offset] = cdr(sliceFrameLast[offset]) = LIST1(v);
+			}
 		}
 	} else if (p->type == LIST && v->type == LIST) {
 		DUMP("temp");
+		unsigned plen = length(p);
+		unsigned vlen = length(p);
 		PairNode * piter = toPair(p);
 		PairNode * viter = toPair(v);
-		if (piter->len > viter->len) {
+		if (plen != vlen) {
 			return -1;
 		}
-		for (int i = 0; i < piter->len; i++) {
+		while (piter->type == LIST) {
 			if (match(piter->a, viter->a) != 0) {
 				return -1;
 			}
 			piter = toPair(cdr(piter));
 			viter = toPair(cdr(viter));
 		}
-	} else if (v->type == LIST) {
+	} else if (p->type == LISTELL && v->type == LIST) {
+		unsigned plen = length(p);
+		unsigned vlen = length(p);
 		PairNode * piter = toPair(p);
 		PairNode * viter = toPair(v);
-		if (piter->len > viter->len || piter->len <= 0) {
+		if (plen > vlen) {
 			return -1;
 		}
 		int i = 0;
 		if (match(piter->a, viter->a) != 0) {
 			return -1;
 		}
-		for (i = 1; i < piter->len; i++) {
+		for (i = 1; i < plen; i++) {
 			piter = toPair(cdr(piter));
 			viter = toPair(cdr(viter));
 			if (match(piter->a, viter->a) != 0) {
 				return -1;
 			}
 		}
-		for (; i < viter->len; i++) {
+		for (; i < vlen; i++) {
 			viter = toPair(cdr(viter));
 			if (match(piter->a, viter->a) != 0) {
 				return -1;
@@ -84,12 +90,14 @@ static int match(Node * p, Node * v) {
 		}
 	} else if (p->type == PAIR && (v->type == PAIR || v->type == LIST)) {
 		DUMP("temp");
+		unsigned plen = length(p);
+		unsigned vlen = length(p);
 		PairNode * piter = toPair(p);
 		PairNode * viter = toPair(v);
-		if (piter->len > viter->len) {
+		if (plen >= vlen) {
 			return -1;
 		}
-		for (int i = 0; i < piter->len; i++) {
+		while (piter->type == PAIR) {
 			if (match(piter->a, viter->a) != 0) {
 				return -1;
 			}
@@ -215,8 +223,8 @@ void initEval() {
 				newOffset(OFFSET, 2), // lit, should be a LIST
 				LIST2(
 					LIST2(
-						newOffset(OFFSET_SLICE, 0), // ps ...
-						newOffset(OFFSET_SLICE, 1) // ts ...
+						newOffset(0, 1), // ps ...
+						newOffset(1, 1) // ts ...
 					),
 					newSymbol("...")
 				)

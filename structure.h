@@ -19,7 +19,6 @@ enum NodeType {
 	LAMBDA,
 	MACRO,
 	OFFSET,
-	OFFSET_SLICE,
 };
 
 typedef struct Node {
@@ -33,7 +32,6 @@ typedef struct SymNode {
 
 typedef struct PairNode {
 	enum NodeType type;
-	unsigned long len;
 	struct Node * a;
 	struct Node * b;
 } PairNode;
@@ -73,6 +71,7 @@ typedef struct LambdaNode {
 typedef struct OffsetNode {
 	enum NodeType type;
 	unsigned int offset;
+	unsigned int depth;
 } OffsetNode;
 
 typedef struct Rule {
@@ -95,7 +94,7 @@ Node * newBool(bool b);
 Node * newChar(char ch);
 Node * newComplex(const char * s);
 Node * newLambda(Node * formal, Node * body);
-Node * newOffset(enum NodeType type, unsigned int offset);
+Node * newOffset(unsigned int offset, unsigned int depth);
 Macro * newMacro(Node * lit, Node * ps, Node * ts);
 
 unsigned int length(Node * a);
