@@ -25,9 +25,9 @@ void printNode(Node * node) {
 		case PAIR: {
 			DUMP("temp");
 				DUMP("temp");
-				if (toPair(node)->a->type == SYMBOL && toPair(node)->b->type != EMPTY && (toPair(node)->b->type == node->type)) {
-					SymNode * a = (SymNode *)toPair(node)->a;
-					PairNode * b = (PairNode *)toPair(node)->b;
+				if (car(node)->type == SYMBOL && cdr(node)->type != EMPTY && (cdr(node)->type == node->type)) {
+					SymNode * a = (SymNode *)car(node);
+					PairNode * b = (PairNode *)cdr(node);
 					if (a->sym == getSym("quote")) {
 						printf("'");
 						printNode(b->a);
@@ -50,17 +50,17 @@ void printNode(Node * node) {
 there:
 					printf("(");
 					while (1) {
-						printNode(toPair(node)->a);
-						if (toPair(node)->b->type == EMPTY) {
+						printNode(car(node));
+						if (cdr(node)->type == EMPTY) {
 							break;
 						}
 						printf(" ");
-						if (toPair(node)->b->type != node->type) {
+						if (cdr(node)->type != node->type) {
 							printf(". ");
-							printNode(toPair(node)->b);
+							printNode(cdr(node));
 							break;
 						}
-						node = toPair(node)->b;
+						node = cdr(node);
 					}
 					printf(")");
 				}
@@ -111,6 +111,9 @@ there:
 		case VECTORELL:
 			printf("{VECTORELL}");
 			break;
+		case MACRO:
+			printf("{MACRO_DEF}"); // TODO
+			break;
 	}
 }
 
@@ -119,6 +122,8 @@ int main(int argc, char * argv[]) {
 	if (argc == 2) {
 		freopen(argv[1], "r", stdin);
 	}
+	void initEval();
+	initEval();
 	static char mem[4096];
 	Env * topEnv = (Env *)mem;
 	topEnv->parent = NULL;

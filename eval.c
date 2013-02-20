@@ -6,13 +6,19 @@
 #include "symbol.h"
 #include "error.h"
 
+static Node * defineSyntaxPattern;
+static Node * lambdaPattern;
 static Node * frame[4096] = {0};
 static Node * sliceFrame[4096] = {0};
 static Node * sliceFrameLast[4096] = {0};
 static unsigned int stack[2][4096];
 static int top[2];
 
-static void destory() {
+static int updateEnv(Env * env, unsigned int sym, Node * value) { // TODO
+	return -1;
+}
+
+static void clear() {
 	while (top[0] > 0) {
 		top[0]--;
 		frame[stack[0][top[0]]] = NULL;
@@ -24,7 +30,7 @@ static void destory() {
 }
 
 static int match(Node * p, Node * v) {
-	if (p->type == EMPTY && v->type == EMPTY) {
+	if (p->type == DUMMY || (p->type == EMPTY && v->type == EMPTY)) {
 		return 0;
 	} else if (p->type == OFFSET) {
 		DUMP("temp");
@@ -36,8 +42,8 @@ static int match(Node * p, Node * v) {
 			stack[1][top[1]++] = offset;
 			sliceFrame[offset] = sliceFrameLast[offset] = LIST1(v);
 		} else {
-			assert(toPair(sliceFrameLast[toOffset(p)->offset])->b->type == EMPTY);
-			sliceFrameLast[offset] = toPair(sliceFrameLast[offset])->b = LIST1(v);
+			assert(cdr(sliceFrameLast[toOffset(p)->offset])->type == EMPTY);
+			sliceFrameLast[offset] = cdr(sliceFrameLast[offset]) = LIST1(v);
 		}
 	} else if (p->type == LIST && v->type == LIST) {
 		DUMP("temp");
@@ -50,8 +56,8 @@ static int match(Node * p, Node * v) {
 			if (match(piter->a, viter->a) != 0) {
 				return -1;
 			}
-			piter = toPair(piter->b);
-			viter = toPair(viter->b);
+			piter = toPair(cdr(piter));
+			viter = toPair(cdr(viter));
 		}
 	} else if (v->type == LIST) {
 		PairNode * piter = toPair(p);
@@ -64,14 +70,14 @@ static int match(Node * p, Node * v) {
 			return -1;
 		}
 		for (i = 1; i < piter->len; i++) {
-			piter = toPair(piter->b);
-			viter = toPair(viter->b);
+			piter = toPair(cdr(piter));
+			viter = toPair(cdr(viter));
 			if (match(piter->a, viter->a) != 0) {
 				return -1;
 			}
 		}
 		for (; i < viter->len; i++) {
-			viter = toPair(viter->b);
+			viter = toPair(cdr(viter));
 			if (match(piter->a, viter->a) != 0) {
 				return -1;
 			}
@@ -87,8 +93,8 @@ static int match(Node * p, Node * v) {
 			if (match(piter->a, viter->a) != 0) {
 				return -1;
 			}
-			piter = toPair(piter->b);
-			viter = toPair(viter->b);
+			piter = toPair(cdr(piter));
+			viter = toPair(cdr(viter));
 		}
 		match((Node *)piter, (Node *)viter);
 	} else if (p->type == VECTOR && v->type == VECTOR) {
@@ -131,8 +137,35 @@ static int match(Node * p, Node * v) {
 	return 0;
 }
 
-static Node * defineSyntax(Node * expr) {
-	return NULL;
+static int defineSyntax(Node * expr, Env * env) {
+	match(defineSyntaxPattern, expr);
+	unsigned long name = toSym(frame[1])->sym;
+	Node * lit = frame[2];
+	Node * ps = sliceFrame[0];
+	Node * ts = sliceFrame[1];
+	clear();
+	if (lit->type != LIST) {
+		return -1;
+	}
+	Macro * ret;
+	if ((ret = newMacro(lit, ps, ts)) == NULL) {
+		return -1;
+	}
+	if (updateEnv(env, name, (Node *)ret)) {
+		return -1;
+	}
+	return 0;
+}
+
+static Node * evalLambda(Node * expr) {
+	match(lambdaPattern, expr);
+	Node * formal = frame[1];
+	Node * body = frame[2];
+	clear();
+	if (formal -> type != EMPTY || formal->type != SYMBOL || formal->type != LIST || formal->type != PAIR) {
+		return NULL;
+	}
+	return newLambda(formal, body);
 }
 
 Node * eval(Node * expr, Env * env) {
@@ -144,11 +177,21 @@ Node * eval(Node * expr, Env * env) {
 		}
 		return expr;
 	}
-	if (toPair(expr)->a->type == SYMBOL) {
-		unsigned long sym = toSym(toPair(expr)->a)->sym;
-		if (sym == getSym("define-syntax")) { // TODO
-			defineSyntax(expr);
-		} else {
+	if (car(expr)->type == SYMBOL) {
+		unsigned long sym = toSym(car(expr))->sym;
+		if (sym == getSym("define-syntax")) {
+			if (defineSyntax(expr, env)) {
+				error("bad syntax");
+				abort();
+			}
+		} else if (sym == getSym("defulat")){
+		} else if (sym == getSym("lambda")) {
+			Node * ret;
+			if ((ret = evalLambda(expr)) == NULL) {
+				error("bad lambda definition");
+				abort();
+			}
+			return ret;
 		}
 		return expr;
 	} else {
@@ -157,4 +200,33 @@ Node * eval(Node * expr, Env * env) {
 	}
 	assert(0);
 	return NULL;
+}
+
+void initEval() {
+	// (`define-syntax` name
+	//   (`syntax-rules` lit
+	//                   ((ps ts) ...)))
+	defineSyntaxPattern =
+		LIST3(
+			newSymbol("define-syntax"),
+			newOffset(OFFSET, 1), // name
+			LIST3(
+				newSymbol("syntax-rules"),
+				newOffset(OFFSET, 2), // lit, should be a LIST
+				LIST2(
+					LIST2(
+						newOffset(OFFSET_SLICE, 0), // ps ...
+						newOffset(OFFSET_SLICE, 1) // ts ...
+					),
+					newSymbol("...")
+				)
+			)
+		);
+	// (`lambda` formal body)
+	lambdaPattern =
+		LIST3(
+			newSymbol("lambda"),
+			newOffset(OFFSET, 1), // formal, EMPTY || SYMBOL || LIST || PAIR
+			newOffset(OFFSET, 2) // body
+		);
 }

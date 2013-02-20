@@ -14,7 +14,6 @@ enum TokenType {
 };
 
 typedef struct Node Node;
-
 typedef struct Token {
 	enum TokenType type;
 	Node * lit;

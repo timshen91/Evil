@@ -17,6 +17,7 @@ enum NodeType {
 	CHARLIT,
 	STRLIT,
 	LAMBDA,
+	MACRO,
 	OFFSET,
 	OFFSET_SLICE,
 };
@@ -80,6 +81,7 @@ typedef struct Rule {
 } Rule;
 
 typedef struct Macro {
+	enum NodeType type;
 	unsigned int ruleLen;
 	Rule rules[];
 } Macro;
@@ -92,6 +94,8 @@ Node * newStrLit(const char * s, unsigned int len);
 Node * newBool(bool b);
 Node * newChar(char ch);
 Node * newComplex(const char * s);
+Node * newLambda(Node * formal, Node * body);
+Node * newOffset(enum NodeType type, unsigned int offset);
 Macro * newMacro(Node * lit, Node * ps, Node * ts);
 
 unsigned int length(Node * a);
@@ -107,10 +111,13 @@ bool equal(Node * a, Node * b);
 #define toChar(p) ((CharNode *)(p))
 #define toString(p) ((StrLitNode *)(p))
 #define toLambda(p) ((LambdaNode *)(p))
+#define toMacro(p) ((Macro *)(p))
 #define toOffset(p) ((OffsetNode *)(p))
 #define LIST1(a) cons((a), &empty)
 #define LIST2(a, b) cons((a), LIST1(b))
 #define LIST3(a, b, c) cons((a), LIST2((b), (c)))
 #define LIST4(a, b, c, d) cons((a), LIST3((b), (c), (d)))
+#define car(p) toPair(p)->a
+#define cdr(p) toPair(p)->b
 
 #endif

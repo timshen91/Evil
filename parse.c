@@ -7,6 +7,8 @@
 #include "symbol.h"
 #include "error.h"
 
+int depth = 0;
+
 static int isSpec(char ch) {
 	const char * a;
 	for (a = "!$%&*+-./:<=>?@^_~"; *a != '\0'; a++) {
@@ -136,6 +138,9 @@ Token nextToken() {
 			abort();
 		}
 	} else if (ch == EOF) {
+		if (depth != 0) {
+			error("unexpected end of file");
+		}
 		exit(0);
 	}
 	return ret;
@@ -153,7 +158,6 @@ Node * parseList() {
 	return cons(a, b);
 }
 
-int depth = 0;
 Node * parse() {
 	Token tok = nextToken();
 	switch (tok.type) {
