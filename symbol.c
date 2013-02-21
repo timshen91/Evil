@@ -6,7 +6,7 @@
 static const char * table[4096]; // FIXME
 static int top = 0;
 
-unsigned long getSym(const char * s) {
+Symbol getSym(const char * s) {
 	for (int i = 0; i < top; i++) {
 		if (strcmp(s, table[i]) == 0) {
 			return i;
@@ -19,6 +19,6 @@ unsigned long getSym(const char * s) {
 	return top - 1;
 }
 
-const char * symToStr(unsigned long sym) {
+const char * symToStr(Symbol sym) {
 	return table[sym];
 }

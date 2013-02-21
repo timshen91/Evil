@@ -7,7 +7,7 @@
 //#define DUMP(s) printf("%s : %d : %s\n", __FILE__, __LINE__, s)
 #define DUMP(s) 
 
-#define error(s) { fprintf(stderr, "%s\n", s); }
+#define error(s) { fprintf(stderr, "%s %d : %s\n", __FILE__, __LINE__, s); }
 #define abort() longjmp(jmpBuff, 1)
 
 jmp_buf jmpBuff;

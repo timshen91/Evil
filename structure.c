@@ -5,8 +5,6 @@
 #include "symbol.h"
 #include "structure.h"
 
-#define isEllipsis(node) ((node)->type == SYMBOL && toSym(node)->sym == getSym("..."))
-
 Node empty = {.type = EMPTY};
 
 typedef struct Real {
@@ -266,230 +264,12 @@ Node * polar2Cart(Node * a) { // TODO
 	return a;
 }
 
-Node * newOffset(unsigned int offset, unsigned int depth) {
-	OffsetNode * ret = alloc(sizeof(OffsetNode));
-	ret->offset = offset;
-	ret->depth = depth;
-	return (Node *)ret;
-}
-
-Node * newLambda(Node * formal, Node * body) { // TODO
+Node * newLambda(Node * formal, Node * body, Env * env) {
 	return NULL;
 }
 
-static bool symInList(unsigned int sym, Node * l) {
-	if (l->type == EMPTY) {
-		return false;
-	}
-	return (car(l)->type == SYMBOL && toSym(car(l))->sym == sym) || symInList(sym, cdr(l));
-}
-
-static unsigned int varn;
-static unsigned int var[4096];
-static unsigned int varDepth[4096];
-int compilePattern(Node * lit, Node ** pp) {
-	static int ellipsisDepth = 0;
-	Node * p = *pp;
-	switch (p->type) {
-		case SYMBOL:
-			if (!symInList(toSym(p)->sym, lit)) {
-				int i;
-				for (i = 0; i < varn; i++) {
-					if (var[i] == toSym(p)->sym) {
-						break;
-					}
-				}
-				if (i == varn) {
-					var[varn] = toSym(p)->sym;
-					varDepth[varn] = ellipsisDepth;
-					varn++;
-				}
-				*pp = newOffset(i, ellipsisDepth);
-			}
-			break;
-		case PAIR:
-			if (compilePattern(lit, &car(p))) {
-				return -1;
-			}
-			if (compilePattern(lit, &cdr(p))) {
-				return -1;
-			}
-			break;
-		case LIST: {
-				Node * next = cdr(p);
-				if (next->type == LIST && isEllipsis(car(next))) {
-					if (cdr(next)->type != EMPTY) {
-						return -1;
-					}
-					ellipsisDepth++;
-					int ret = compilePattern(lit, &car(p));
-					ellipsisDepth--;
-					if (ret) {
-						return -1;
-					}
-					cdr(p) = p;
-					cdr(p) = &empty;
-					toPair(p)->type = LISTELL;
-				} else {
-					if (compilePattern(lit, &car(p))) {
-						return -1;
-					}
-					compilePattern(lit, &cdr(p));
-					if (cdr(cdr(p))->type == LISTELL) {
-						toPair(p)->type = LISTELL;
-					}
-				}
-			}
-			break;
-		case VECTOR:
-			if (toVec(p)->len > 0) {
-				int i;
-				for (i = 0; i < toVec(p)->len - 1; i++) {
-					Node * now = toVec(p)->vec[i];
-					if (isEllipsis(now)) {
-						return -1;
-					}
-				}
-				Node * now = toVec(p)->vec[i];
-				if (isEllipsis(now)) {
-					p->type = VECTORELL;
-					toVec(p)->len--;
-				}
-				for (i = 0; i < toVec(p)->len - 1; i++) {
-					if (compilePattern(lit, &toVec(p)->vec[i])) {
-						return -1;
-					}
-				}
-				ellipsisDepth++;
-				int ret = compilePattern(lit, &toVec(p)->vec[i]);
-				ellipsisDepth--;
-				if (ret) {
-					return -1;
-				}
-			}
-			break;
-		case EMPTY:
-		case BOOLLIT:
-		case NUMLIT:
-		case CHARLIT:
-		case STRLIT:
-			break;
-		case DUMMY:
-		case LAMBDA:
-		case MACRO:
-		case LISTELL:
-		case VECTORELL:
-		case OFFSET:
-			assert(0);
-			break;
-	}
-	return 0;
-}
-
-static int compileTemplate(Node ** tt) {
-	static bool ellipsisDepth = 0;
-	Node * t = *tt;
-	switch (t->type) {
-		case SYMBOL: {
-				if (isEllipsis(t)) {
-					return -1;
-				}
-				int i;
-				for (i = 0; i < varn; i++) {
-					if (var[i] == toSym(t)->sym) {
-						break;
-					}
-				}
-				if (i < varn) {
-					*tt = newOffset(i, ellipsisDepth);
-				} else if (ellipsisDepth > 0) {
-					return -1;
-				}
-			}
-			break;
-		case PAIR:
-		case LIST: {
-				if (car(t)->type == SYMBOL) {
-					ellipsisDepth = 0;
-					Node * next = cdr(t);
-					while (next->type == LIST && isEllipsis(car(next))) {
-						ellipsisDepth++;
-						next = cdr(next);
-					}
-					cdr(t) = next;
-				}
-				int ret = compileTemplate(&car(t));
-				if (ret) {
-					return -1;
-				}
-				if (compileTemplate(&cdr(t))) {
-					return -1;
-				}
-			}
-			break;
-		case VECTOR: {
-				int i = 0;
-				int j = 0;
-				while (i < toVec(t)->len) {
-					int k = i + 1;
-					if (toVec(t)->vec[i]->type == SYMBOL) {
-						while (k < toVec(t)->len && isEllipsis(toVec(t)->vec[k])) {
-							k++;
-						}
-						ellipsisDepth = k - i - 1;
-					}
-					if (compileTemplate(&toVec(t)->vec[i])) {
-						return -1;
-					}
-					toVec(t)->vec[j++] = toVec(t)->vec[i];
-					i = k;
-				}
-				toVec(t)->len = j;
-			}
-			break;
-		case EMPTY:
-		case BOOLLIT:
-		case NUMLIT:
-		case CHARLIT:
-		case STRLIT:
-			break;
-		case DUMMY:
-		case LAMBDA:
-		case MACRO:
-		case LISTELL:
-		case VECTORELL:
-		case OFFSET:
-			assert(0);
-			break;
-	}
-	return 0;
-}
-
-static int compile(Rule * ret, Node * lit, Node ** p, Node ** t) {
-	varn = 1; // 0 for DUMMY
-	if (compilePattern(lit, p)) {
-		return -1;
-	}
-	if (compileTemplate(p)) {
-		return -1;
-	}
-	ret->ptrn = *p;
-	ret->tmpl = *t;
-	return 0;
-}
-
-Macro * newMacro(Node * lit, Node * ps, Node * ts) {
-	unsigned int len = length(ps);
-	assert(len == length(ts));
-	Macro * ret = alloc(sizeof(Macro) + len * sizeof(Rule));
-	ret->type = MACRO;
-	ret->ruleLen = len;
-	for (int i = 0; i < len; i++) {
-		if (compile(&ret->rules[i], lit, &car(ps), &car(ts))) {
-			return NULL;
-		}
-	}
-	return ret;
+Node * newRef(Symbol sym) { // TODO
+	return NULL;
 }
 
 bool equal(Node * a, Node * b) {
@@ -528,7 +308,8 @@ bool equal(Node * a, Node * b) {
 				return false;
 			}
 			return memcmp(toString(a)->str, toString(b)->str, toString(a)->len) == 0;
-		case LAMBDA:
+		case LIST_LAMBDA:
+		case PAIR_LAMBDA:
 			return a == b;
 		default:
 			return false;

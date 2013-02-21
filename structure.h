@@ -2,23 +2,27 @@
 #define __STRUCTURE_H__
 
 #include <stdbool.h>
+#include "symbol.h"
 
 enum NodeType {
 	SYMBOL,
 	PAIR,
 	LIST,
 	EMPTY,
-	DUMMY,
-	LISTELL,
 	VECTOR,
-	VECTORELL,
 	BOOLLIT,
 	NUMLIT,
 	CHARLIT,
 	STRLIT,
-	LAMBDA,
+	LIST_LAMBDA,
+	PAIR_LAMBDA,
 	MACRO,
-	OFFSET,
+	REF,
+// macro,
+	DUMMY,
+	LISTELL,
+	VECTORELL,
+	MARG,
 };
 
 typedef struct Node {
@@ -27,7 +31,7 @@ typedef struct Node {
 
 typedef struct SymNode {
 	enum NodeType type;
-	unsigned long sym;
+	Symbol sym;
 } SymNode;
 
 typedef struct PairNode {
@@ -62,45 +66,35 @@ typedef struct ComplexNode {
 	enum NodeType type;
 } ComplexNode;
 
+typedef struct Env Env;
 typedef struct LambdaNode {
 	enum NodeType type;
-	unsigned int argn;
+	unsigned int envLen;
+	Env * env;
 	Node * body;
 } LambdaNode;
 
-typedef struct OffsetNode {
+typedef struct RefNode {
 	enum NodeType type;
+	unsigned int upn;
 	unsigned int offset;
-	unsigned int depth;
-} OffsetNode;
-
-typedef struct Rule {
-	Node * ptrn;
-	Node * tmpl;
-} Rule;
-
-typedef struct Macro {
-	enum NodeType type;
-	unsigned int ruleLen;
-	Rule rules[];
-} Macro;
+} RefNode;
 
 Node empty;
 
 Node * newSymbol(const char *);
-Node * newVector(unsigned int len);
-Node * newStrLit(const char * s, unsigned int len);
-Node * newBool(bool b);
-Node * newChar(char ch);
-Node * newComplex(const char * s);
-Node * newLambda(Node * formal, Node * body);
-Node * newOffset(unsigned int offset, unsigned int depth);
-Macro * newMacro(Node * lit, Node * ps, Node * ts);
+Node * newVector(unsigned int);
+Node * newStrLit(const char *, unsigned int);
+Node * newBool(bool);
+Node * newChar(char);
+Node * newComplex(const char *);
+Node * newLambda(Node *, Node *, Env *);
+Node * newRef(Symbol);
 
-unsigned int length(Node * a);
-Node * polar2Cart(Node * a);
-Node * cons(Node * a, Node * b);
-bool equal(Node * a, Node * b);
+unsigned int length(Node *);
+Node * polar2Cart(Node *);
+Node * cons(Node *, Node *);
+bool equal(Node *, Node *);
 
 #define toPair(p) ((PairNode *)(p))
 #define toSym(p) ((SymNode *)(p))
@@ -110,8 +104,6 @@ bool equal(Node * a, Node * b);
 #define toChar(p) ((CharNode *)(p))
 #define toString(p) ((StrLitNode *)(p))
 #define toLambda(p) ((LambdaNode *)(p))
-#define toMacro(p) ((Macro *)(p))
-#define toOffset(p) ((OffsetNode *)(p))
 #define LIST1(a) cons((a), &empty)
 #define LIST2(a, b) cons((a), LIST1(b))
 #define LIST3(a, b, c) cons((a), LIST2((b), (c)))

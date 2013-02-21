@@ -96,11 +96,17 @@ there:
 			}
 			printf("\"");
 			break;
-		case LAMBDA:
-			assert(0);
+		case LIST_LAMBDA:
+			printf("{LAMBDA}");
 			break;
-		case OFFSET:
-			printf("{OFFSET}");
+		case PAIR_LAMBDA:
+			printf("{LAMBDA}");
+			break;
+		case REF:
+			printf("{REF}");
+			break;
+		case MARG:
+			printf("{MARG}");
 			break;
 		case LISTELL:
 			printf("{LISTELL}");
