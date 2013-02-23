@@ -366,3 +366,12 @@ Macro * newMacro(Node * lit, Node * ps, Node * ts, Env * env) {
 	}
 	return ret;
 }
+
+Node * transform(Macro * mac, Node * expr) {
+	for (int i = 0; i < mac->ruleLen; i++) {
+		if (match(mac->rules[i]->ptrn, expr)) {
+			// TODO
+		}
+	}
+	return NULL;
+}

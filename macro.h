@@ -28,6 +28,5 @@ bool match(Node * p, Node * v);
 void matchClear(); // every time called match
 Node * newMarg(unsigned int, unsigned int);
 Macro * newMacro(Node *, Node *, Node *, Env *);
-//Node * transform(Node *);
 
 #endif
