@@ -27,10 +27,7 @@ Node * eval(Node * expr, Env * env) {
 		case LIST: {
 			Node * first = eval(car(expr), env);
 			if (first->type == MACRO || first->type == BUILTIN) {
-				Node * ret;
-				if ((ret = transform(first, expr, env)) == NULL) {
-					abort();
-				}
+				Node * ret = transform(first, expr, env);
 				return eval(ret, env);
 			} else {
 				Node * args = &empty;

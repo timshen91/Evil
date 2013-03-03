@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stddef.h>
+#include <string.h>
 #include "macro.h"
 #include "memory.h"
 #include "symbol.h"
@@ -42,18 +43,7 @@ Node * sliceFrameLast[4096] = {0};
 static unsigned int stack[2][4096];
 static int top[2];
 
-static void matchClear() {
-	while (top[0] > 0) {
-		top[0]--;
-		frame[stack[0][top[0]]] = NULL;
-	}
-	while (top[1] > 0) {
-		top[1]--;
-		sliceFrame[stack[0][top[1]]] = NULL;
-	}
-}
-
-bool matchImpl(Node * p, Node * v) {
+static bool matchImpl(Node * p, Node * v) {
 	if (p->type == DUMMY) {
 		return true;
 	} else if (p->type == MARG) {
@@ -65,7 +55,7 @@ bool matchImpl(Node * p, Node * v) {
 		} else {
 			if (sliceFrame[offset] == NULL) {
 				stack[1][top[1]++] = offset;
-				sliceFrame[offset] = sliceFrameLast[offset] = LIST1(v);
+				sliceFrame[offset] = sliceFrameLast[offset] = cons(v, NULL);
 			} else {
 				assert(cdr(sliceFrameLast[offset])->type == EMPTY);
 				sliceFrameLast[offset] = cdr(sliceFrameLast[offset]) = LIST1(v);
@@ -90,21 +80,18 @@ bool matchImpl(Node * p, Node * v) {
 	} else if (p->type == LISTELL && v->type == LIST) {
 		unsigned int plen = length(p);
 		unsigned int vlen = length(p);
+		if (plen - 1 > vlen) {
+			return false;
+		}
 		PairNode * piter = toPair(p);
 		PairNode * viter = toPair(v);
-		if (plen > vlen) {
-			return false;
-		}
 		int i = 0;
-		if (matchImpl(piter->a, viter->a) != 0) {
-			return false;
-		}
-		for (i = 1; i < plen; i++) {
-			piter = toPair(cdr(piter));
-			viter = toPair(cdr(viter));
+		for (i = 0; i < plen - 1; i++) {
 			if (matchImpl(piter->a, viter->a) != 0) {
 				return false;
 			}
+			piter = toPair(cdr(piter));
+			viter = toPair(cdr(viter));
 		}
 		for (; i < vlen; i++) {
 			viter = toPair(cdr(viter));
@@ -146,13 +133,13 @@ bool matchImpl(Node * p, Node * v) {
 	} else if (p->type == VECTORELL && v->type == VECTOR) {
 		int lenp = toVec(p)->len;
 		int lenv = toVec(v)->len;
-		if (lenp > lenv || lenp <= 0) {
+		if (lenp <= 0 || lenp - 1 > lenv) {
 			return false;
 		}
 		Node ** vp = toVec(p)->vec;
 		Node ** vv = toVec(v)->vec;
 		int i;
-		for (i = 0; i < lenp; i++) {
+		for (i = 0; i < lenp - 1; i++) {
 			if (matchImpl(vp[i], vv[i]) != 0) {
 				return false;
 			}
@@ -170,7 +157,14 @@ bool matchImpl(Node * p, Node * v) {
 }
 
 bool match(Node * p, Node * v) {
-	matchClear();
+	while (top[0] > 0) {
+		top[0]--;
+		frame[stack[0][top[0]]] = NULL;
+	}
+	while (top[1] > 0) {
+		top[1]--;
+		sliceFrame[stack[0][top[1]]] = sliceFrameLast[stack[0][top[1]]] = NULL;
+	}
 	return matchImpl(p, v);
 }
 
@@ -192,8 +186,8 @@ static bool symInList(Symbol sym, Node * l) {
 static unsigned int varTop;
 static Symbol var[4096];
 static unsigned int varDepth[4096];
-int compilePattern(Node * lit, Node ** pp) {
-	static int ellipsisDepth = 0;
+static int ellipsisDepth = 0;
+static void compilePattern(Node * lit, Node ** pp) {
 	Node * p = *pp;
 	switch (p->type) {
 		case SYMBOL:
@@ -205,7 +199,8 @@ int compilePattern(Node * lit, Node ** pp) {
 					}
 				}
 				if (i != varTop) {
-					return -1;
+					error("compile pattern");
+					abort();
 				}
 				var[varTop] = toSym(p)->sym;
 				varDepth[varTop] = ellipsisDepth;
@@ -214,32 +209,24 @@ int compilePattern(Node * lit, Node ** pp) {
 			}
 			break;
 		case PAIR:
-			if (compilePattern(lit, &car(p))) {
-				return -1;
-			}
-			if (compilePattern(lit, &cdr(p))) {
-				return -1;
-			}
+			compilePattern(lit, &car(p));
+			compilePattern(lit, &cdr(p));
 			break;
 		case LIST: {
 				Node * next = cdr(p);
 				if (next->type == LIST && isEllipsis(car(next))) {
 					if (cdr(next)->type != EMPTY) {
-						return -1;
+						error("compile pattern");
+						abort();
 					}
 					ellipsisDepth++;
-					int ret = compilePattern(lit, &car(p));
+					compilePattern(lit, &car(p));
 					ellipsisDepth--;
-					if (ret) {
-						return -1;
-					}
 					cdr(p) = p;
 					cdr(p) = &empty;
 					toPair(p)->type = LISTELL;
 				} else {
-					if (compilePattern(lit, &car(p))) {
-						return -1;
-					}
+					compilePattern(lit, &car(p));
 					compilePattern(lit, &cdr(p));
 					if (cdr(cdr(p))->type == LISTELL) {
 						toPair(p)->type = LISTELL;
@@ -253,7 +240,8 @@ int compilePattern(Node * lit, Node ** pp) {
 				for (i = 0; i < toVec(p)->len - 1; i++) {
 					Node * now = toVec(p)->vec[i];
 					if (isEllipsis(now)) {
-						return -1;
+						error("compile pattern");
+						abort();
 					}
 				}
 				Node * now = toVec(p)->vec[i];
@@ -262,16 +250,11 @@ int compilePattern(Node * lit, Node ** pp) {
 					toVec(p)->len--;
 				}
 				for (i = 0; i < toVec(p)->len - 1; i++) {
-					if (compilePattern(lit, &toVec(p)->vec[i])) {
-						return -1;
-					}
+					compilePattern(lit, &toVec(p)->vec[i]);
 				}
 				ellipsisDepth++;
-				int ret = compilePattern(lit, &toVec(p)->vec[i]);
+				compilePattern(lit, &toVec(p)->vec[i]);
 				ellipsisDepth--;
-				if (ret) {
-					return -1;
-				}
 			}
 			break;
 		case DUMMY:
@@ -288,19 +271,19 @@ int compilePattern(Node * lit, Node ** pp) {
 		case VECTORELL:
 		case MARG:
 		case BUILTIN:
-			assert(0);
+			error("unreachable");
+			abort();
 			break;
 	}
-	return 0;
 }
 
-static int compileTemplate(Node ** tt) {
-	static bool ellipsisDepth = 0;
+static void compileTemplate(Node ** tt, Env * env) {
 	Node * t = *tt;
 	switch (t->type) {
 		case SYMBOL: {
 				if (isEllipsis(t)) {
-					return -1;
+					error("compile template");
+					abort();
 				}
 				int i;
 				for (i = 0; i < varTop; i++) {
@@ -310,13 +293,16 @@ static int compileTemplate(Node ** tt) {
 				}
 				if (i < varTop) { // arg
 					if (ellipsisDepth != varDepth[i]) {
-						return -1;
+						error("compile template");
+						abort();
 					}
 					*tt = newMarg(i, ellipsisDepth);
 				} else { // free var
 					if (ellipsisDepth > 0) { 
-						return -1;
+						error("compile template");
+						abort();
 					}
+					*tt = lookup(env, toSym(t)->sym);
 				}
 			}
 			break;
@@ -331,13 +317,8 @@ static int compileTemplate(Node ** tt) {
 					}
 					cdr(t) = next;
 				}
-				int ret = compileTemplate(&car(t));
-				if (ret) {
-					return -1;
-				}
-				if (compileTemplate(&cdr(t))) {
-					return -1;
-				}
+				compileTemplate(&car(t), env);
+				compileTemplate(&cdr(t), env);
 			}
 			break;
 		case VECTOR: {
@@ -351,9 +332,7 @@ static int compileTemplate(Node ** tt) {
 						}
 						ellipsisDepth = k - i - 1;
 					}
-					if (compileTemplate(&toVec(t)->vec[i])) {
-						return -1;
-					}
+					compileTemplate(&toVec(t)->vec[i], env);
 					toVec(t)->vec[j++] = toVec(t)->vec[i];
 					i = k;
 				}
@@ -374,10 +353,10 @@ static int compileTemplate(Node ** tt) {
 		case VECTORELL:
 		case MARG:
 		case BUILTIN:
-			assert(0);
+			error("unreachable");
+			abort();
 			break;
 	}
-	return 0;
 }
 
 Node * newMacro(Node * lit, Node * ps, Node * ts, Env * env) {
@@ -389,12 +368,9 @@ Node * newMacro(Node * lit, Node * ps, Node * ts, Env * env) {
 	ret->ruleLen = len;
 	for (int i = 0; i < len; i++) {
 		varTop = 0;
-		if (compilePattern(lit, &car(ps))) {
-			return NULL;
-		}
-		if (compileTemplate(&car(ts))) {
-			return NULL;
-		}
+		ellipsisDepth = 0;
+		compilePattern(lit, &car(ps));
+		compileTemplate(&car(ts), env);
 		car(ps) = cons(&dummy, car(ps));
 		ret->rules[i].ptrn = car(ps);
 		ret->rules[i].tmpl = car(ts);
@@ -409,36 +385,103 @@ Node * newBuiltin(Node * (*f)(Node *, Env *)) {
 	return (Node *)ret;
 }
 
-static Node * copy(Node * item) { // TODO
-	switch (item->type) {
+Node * render(Node * t, Env * env) {
+	switch (t->type) {
+		case MARG: // FIXME : not hygiene
+			if (toMarg(t)->depth > 0) {
+				return sliceFrame[toMarg(t)->offset];
+			}
+			return frame[toMarg(t)->offset];
+		case PAIR: {
+			Node * iter = t;
+			Node * head = &empty;
+			Node ** lst = &head;
+			while (iter->type == PAIR) {
+				Node * item = render(car(iter), env);
+				if (car(iter)->type == MARG && toMarg(car(iter))->depth > 0) {
+					*lst = item;
+					while (*lst != NULL) {
+						cdr(*lst)->type = PAIR;
+						lst = &cdr(*lst);
+					}
+				} else {
+					*lst = cons(item, &empty);
+					lst = &cdr(*lst);
+				}
+			}
+			*lst = iter;
+			return head;
+		}
+		case LIST: {
+			Node * iter = t;
+			Node * head = &empty;
+			Node ** lst = &head;
+			while (iter->type == LIST) {
+				Node * item = render(car(iter), env);
+				if (car(iter)->type == MARG && toMarg(car(iter))->depth > 0) {
+					*lst = item;
+					while (*lst != NULL) {
+						cdr(*lst)->type = LIST;
+						lst = &cdr(*lst);
+					}
+				} else {
+					*lst = cons(item, &empty);
+					lst = &cdr(*lst);
+				}
+			}
+			*lst = &empty;
+			return head;
+		}
+		case VECTOR: {
+			Node * buff[4096]; // FIXME
+			int top = 0;
+			for (int i = 0; i < toVec(t)->len; i++) {
+				Node * iter = toVec(t)->vec[i];
+				Node * item = render(iter, env);
+				if (iter->type == MARG && toMarg(iter)->depth > 0) {
+					Node * lst = item;
+					while (lst != NULL) {
+						buff[top++] = car(lst);
+						lst = cdr(lst);
+					}
+				} else {
+					buff[top++] = item;
+				}
+			}
+			Node * ret = newVector(top);
+			memcpy(toVec(ret)->vec, buff, sizeof(Node *) * top);
+			return ret;
+		}
+		case SYMBOL:
 		case EMPTY:
 		case BOOL:
 		case COMPLEX:
 		case CHAR:
 		case STRING:
-		default:
-			assert(0);
+		case LIST_LAMBDA:
+		case PAIR_LAMBDA:
+		case MACRO:
+		case BUILTIN:
+			return t;
+		case DUMMY:
+		case LISTELL:
+		case VECTORELL:
+			error("unreachable");
+			abort();
 			break;
 	}
 }
 
-void render(Node ** t) { // TODO
-}
-
 Node * transform(Node * mac, Node * expr, Env * env) {
-	if (expr->type != LIST) {
-		return NULL;
-	}
 	if (mac->type == BUILTIN) {
 		return toBuil(mac)->f(expr, env);
 	}
 	for (int i = 0; i < toMacro(mac)->ruleLen; i++) {
 		if (match(toMacro(mac)->rules[i].ptrn, expr)) {
-			Node * ret = copy(toMacro(mac)->rules[i].tmpl);
-			render(&ret);
-			return ret;
+			return render(toMacro(mac)->rules[i].tmpl, env);
 		}
 	}
+	abort();
 	return NULL;
 }
 
@@ -473,7 +516,7 @@ Node * cbDefineSyntax(Node * expr, Env * env) {
 	return NULL;
 }
 
-Node * cbDefine(Node * expr, Env * env) { // TODO
+Node * cbDefine(Node * expr, Env * env) {
 	if (match(definePattern, expr)) {
 		if (frame[0]->type != SYMBOL) {
 			error("bad syntax");
