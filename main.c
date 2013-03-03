@@ -6,6 +6,7 @@
 #include "symbol.h"
 #include "eval.h"
 #include "error.h"
+#include "environment.h"
 
 jmp_buf jmpBuff;
 
@@ -76,19 +77,19 @@ there:
 				}
 			}
 			printf(")");
-		case BOOLLIT:
+		case BOOL:
 			DUMP("temp");
 			printf("%s", (((BoolNode *)node)->value) ? "#t" : "#f");
 			break;
-		case NUMLIT:
+		case COMPLEX:
 			DUMP("temp");
-			printf("{NUMLIT}");
+			printf("{COMPLEX}");
 			break;
-		case CHARLIT:
+		case CHAR:
 			DUMP("temp");
 			printf("%c", ((CharNode *)node)->value);
 			break;
-		case STRLIT:
+		case STRING:
 			DUMP("temp");
 			printf("\"");
 			for (int i = 0; i < toString(node)->len; i++) {
@@ -102,9 +103,6 @@ there:
 		case PAIR_LAMBDA:
 			printf("{LAMBDA}");
 			break;
-		case REF:
-			printf("{REF}");
-			break;
 		case MARG:
 			printf("{MARG}");
 			break;
@@ -117,22 +115,23 @@ there:
 		case MACRO:
 			printf("{MACRO_DEF}"); // TODO
 			break;
+		case BUILTIN:
+			printf("{BUILTIN}");
+			break;
 	}
 }
 
-int depth;
+char mem[4096];
+Env * topEnv = (Env *)mem;
 int main(int argc, char * argv[]) {
 	if (argc == 2) {
 		freopen(argv[1], "r", stdin);
 	}
-	void initEval();
-	initEval();
-	static char mem[4096];
-	Env * topEnv = (Env *)mem;
+	void initMacro();
+	initMacro();
 	topEnv->parent = NULL;
 	while (1) {
 		if (!setjmp(jmpBuff)) {
-			depth = 0;
 			//eval(parse(), topEnv);
 			printNode(eval(parse(), topEnv));
 			printf("\n");

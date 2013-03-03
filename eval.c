@@ -4,107 +4,63 @@
 #include "symbol.h"
 #include "macro.h"
 #include "error.h"
+#include "environment.h"
 
-struct LL * lexStack[4096] = {0};
-
-static Node * defineSyntaxPattern;
-static Node * lambdaPattern;
-
-static void updateEnv(Env * env, Symbol sym, Node * value) { // TODO
-}
-
-static void defineSyntax(Node * expr, Env * env) {
-	if (!match(defineSyntaxPattern, expr)) {
-		error("bad syntax");
+Node * apply(Node * f, Node * args) {
+	if (f->type != LIST_LAMBDA && f->type != PAIR_LAMBDA) {
+		error("not callable");
 		abort();
 	}
-	Symbol name = toSym(frame[1])->sym;
-	Node * lit = frame[2];
-	Node * ps = sliceFrame[0];
-	Node * ts = sliceFrame[1];
-	matchClear();
-	if (lit->type != LIST) {
-		error("bad syntax");
-		abort();
-	}
-	Macro * ret;
-	if ((ret = newMacro(lit, ps, ts, env)) == NULL) {
-		error("bad syntax");
-		abort();
-	}
-	updateEnv(env, name, (Node *)ret);
-}
-
-static Node * evalLambda(Node * expr, Env * env) {
-	if (!match(lambdaPattern, expr)) {
-		error("bad syntax");
-		abort();
-	}
-	Node * formal = frame[1];
-	Node * body = frame[2];
-	matchClear();
-	Node * ret;
-	if ((ret = newLambda(formal, body, env)) == NULL) {
-		error("invalid lambda construction");
-		abort();
-	}
-	return ret;
+	// TODO
+	return NULL;
 }
 
 Node * eval(Node * expr, Env * env) {
 	return expr;
-	if (expr->type != LIST) {
-		if (expr->type == PAIR) {
+	switch (expr->type) {
+		case SYMBOL:
+			return lookup(env, toSym(car(expr))->sym);
+		case PAIR:
 			error("cannot eval a pair");
 			abort();
+			break;
+		case LIST: {
+			Node * first = eval(car(expr), env);
+			if (first->type == MACRO || first->type == BUILTIN) {
+				Node * ret;
+				if ((ret = transform(first, expr, env)) == NULL) {
+					abort();
+				}
+				return eval(ret, env);
+			} else {
+				Node * args = &empty;
+				for (Node * iter = cdr(expr); iter->type == LIST; iter = cdr(iter)) {
+					args = cons(eval(iter, env), args);
+				}
+				return apply(first, args);
+			}
 		}
-		return expr;
+		case EMPTY:
+			error("cannot eval an empty list");
+			abort();
+			break;
+		case VECTOR:
+		case BOOL:
+		case COMPLEX:
+		case CHAR:
+		case STRING:
+		case LIST_LAMBDA:
+		case PAIR_LAMBDA:
+		case MACRO:
+		case BUILTIN:
+			return expr;
+		case DUMMY:
+		case LISTELL:
+		case VECTORELL:
+		case MARG:
+			assert(0);
+			break;
 	}
-	if (car(expr)->type == SYMBOL) {
-		Symbol sym = toSym(car(expr))->sym;
-		if (sym == getSym("define-syntax")) {
-			defineSyntax(expr, env);
-		} else if (sym == getSym("define")){
-			//if (newDefine(expr)) {
-			//	abort();
-			//}
-		} else if (sym == getSym("lambda")) {
-			return evalLambda(expr, env);
-		}
-		return expr;
-	} else {
-		// TODO
-		return expr;
-	}
-	assert(0);
+	abort();
 	return NULL;
-}
-
-void initEval() {
-	// (`define-syntax` name
-	//   (`syntax-rules` lit
-	//                   ((ps ts) ...)))
-	defineSyntaxPattern =
-		LIST3(
-			newSymbol("define-syntax"),
-			newMarg(MARG, 1), // name
-			LIST3(
-				newSymbol("syntax-rules"),
-				newMarg(MARG, 2), // lit, should be a LIST
-				LIST2(
-					LIST2(
-						newMarg(0, 1), // ps ...
-						newMarg(1, 1) // ts ...
-					),
-					newSymbol("...")
-				)
-			)
-		);
-	// (`lambda` formal body)
-	lambdaPattern =
-		LIST3(
-			newSymbol("lambda"),
-			newMarg(MARG, 1), // formal
-			newMarg(MARG, 2) // body
-		);
 }

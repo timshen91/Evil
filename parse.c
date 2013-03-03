@@ -56,13 +56,15 @@ Token nextToken() {
 		}
 	} else if (ch == ';') {
 		DUMP("comment");
-		while (getchar() != '\n');
 		ch = getchar();
+		while (ch != '\n' && ch != EOF) {
+			ch = getchar();
+		}
 		return nextToken();
 	} else if (ch == '\"') {
 		DUMP("strlit");
 		ch = getchar();
-		while (ch != '\"') {
+		while (ch != '\"' && ch != EOF) {
 			if (ch == '\\') {
 				buff[len++] = getchar();
 				ch = getchar();
@@ -73,7 +75,7 @@ Token nextToken() {
 		}
 		buff[len] = '\0';
 		ret.type = LIT;
-		ret.lit = newStrLit(buff, len);
+		ret.lit = newString(buff, len);
 		ch = getchar();
 	} else if (ch == '\'') {
 		ret.type = QUOTE;
@@ -101,7 +103,7 @@ Token nextToken() {
 			ret.lit = newBool(0);
 			ch = getchar();
 		} else if (ch == 'e' || ch == 'i' || ch == 'b' || ch == 'o' || ch == 'd' || ch == 'x') {
-			while (!isspace(ch)) {
+			while (ch != EOF && !isspace(ch)) {
 				buff[len++] = ch;
 				ch = getchar();
 			}
@@ -117,7 +119,7 @@ Token nextToken() {
 			ret.type = LIT;
 			ch = getchar();
 			buff[len++] = ch;
-			while (!isspace(ch = getchar())) {
+			while ((ch = getchar()) != EOF && !isspace(ch)) {
 				buff[len++] = ch;
 			}
 			buff[len] = '\0';
@@ -147,11 +149,11 @@ Token nextToken() {
 }
 
 Node * parse();
-static int endOfList = 0;
+static bool endOfList = false;
 Node * parseList() {
 	Node * a = parse();
 	if (endOfList) {
-		endOfList = 0;
+		endOfList = false;
 		return a;
 	}
 	Node * b = parseList();
@@ -167,18 +169,20 @@ Node * parse() {
 		case RPAREN:
 			if (depth <= 0) {
 				error("unmatched RPAREN");
+				depth = 0;
 				abort();
 			}
 			depth--;
-			endOfList = 1;
+			endOfList = true;
 			return &empty;
 		case LIT:
 			return tok.lit;
 		case PERIOD: {
 			Node * ret = parse();
 			parse();
-			if (endOfList != 1) {
+			if (!endOfList) {
 				error("unexpected end of pair");
+				depth = 0;
 				abort();
 			}
 			return ret;
@@ -208,10 +212,14 @@ Node * parse() {
 			return LIST2(sym, now);
 		}
 		case HASHLPAREN: {
+			int old = ++depth;
 			Node * v[4096]; // FIXME
 			int len = 0;
 			while (1) {
 				Node * now = parse();
+				if (depth == old) {
+					break;
+				}
 				assert(len < 4096);
 				v[len++] = now;
 			}

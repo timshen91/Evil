@@ -10,13 +10,14 @@ Node empty = {.type = EMPTY};
 typedef struct Real {
 	unsigned int len;
 	bool pos;
-	unsigned long offset;
+	unsigned int offset;
 } Real;
 
 Node * newSymbol(const char * s) {
 	SymNode * ret = alloc(sizeof(SymNode));
 	ret->type = SYMBOL;
 	ret->sym = getSym(s);
+	ret->fromLevel = 0;
 	return (Node *)ret;
 }
 
@@ -27,24 +28,24 @@ Node * newVector(unsigned int len) {
 	return (Node *)ret;
 }
 
-Node * newStrLit(const char * s, unsigned int len) {
-	StrLitNode * ret = alloc(sizeof(StrLitNode) + len);
+Node * newString(const char * s, unsigned int len) {
+	StringNode * ret = alloc(sizeof(StringNode) + len);
 	memcpy(ret->str, s, len);
-	ret->type = STRLIT;
+	ret->type = STRING;
 	ret->len = len;
 	return (Node *)ret;
 }
 
 Node * newBool(bool b) {
 	BoolNode * ret = alloc(sizeof(BoolNode));
-	ret->type = BOOLLIT;
+	ret->type = BOOL;
 	ret->value = b;
 	return (Node *)ret;
 }
 
 Node * newChar(char ch) {
 	CharNode * ret = alloc(sizeof(CharNode));
-	ret->type = CHARLIT;
+	ret->type = CHAR;
 	ret->value = ch;
 	return (Node *)ret;
 }
@@ -152,7 +153,7 @@ decimal:
 
 Node * makeComplex(const char * a, const char * b, int radix) { // TODO
 	ComplexNode * ret = alloc(sizeof(ComplexNode));
-	ret->type = NUMLIT;
+	ret->type = COMPLEX;
 	return (Node *)ret;
 }
 
@@ -264,11 +265,7 @@ Node * polar2Cart(Node * a) { // TODO
 	return a;
 }
 
-Node * newLambda(Node * formal, Node * body, Env * env) {
-	return NULL;
-}
-
-Node * newRef(Symbol sym) { // TODO
+Node * newLambda(Node * formal, Node * body, Env * env) { // TODO
 	return NULL;
 }
 
@@ -297,13 +294,13 @@ bool equal(Node * a, Node * b) {
 			}
 			return 1;
 		}
-		case BOOLLIT:
+		case BOOL:
 			return toBool(a)->value == toBool(b)->value;
-		case NUMLIT:
+		case COMPLEX:
 			return false; // TODO
-		case CHARLIT:
+		case CHAR:
 			return toChar(a)->value == toChar(b)->value;
-		case STRLIT:
+		case STRING:
 			if (toString(a)->len != toString(b)->len) {
 				return false;
 			}

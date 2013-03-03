@@ -10,14 +10,14 @@ enum NodeType {
 	LIST,
 	EMPTY,
 	VECTOR,
-	BOOLLIT,
-	NUMLIT,
-	CHARLIT,
-	STRLIT,
+	BOOL,
+	COMPLEX,
+	CHAR,
+	STRING,
 	LIST_LAMBDA,
 	PAIR_LAMBDA,
 	MACRO,
-	REF,
+	BUILTIN,
 // macro,
 	DUMMY,
 	LISTELL,
@@ -32,6 +32,7 @@ typedef struct Node {
 typedef struct SymNode {
 	enum NodeType type;
 	Symbol sym;
+	unsigned int fromLevel;
 } SymNode;
 
 typedef struct PairNode {
@@ -46,11 +47,11 @@ typedef struct VecNode {
 	Node * vec[];
 } VecNode;
 
-typedef struct StrLitNode {
+typedef struct StringNode {
 	enum NodeType type;
 	unsigned int len;
 	char str[];
-} StrLitNode;
+} StringNode;
 
 typedef struct BoolNode {
 	enum NodeType type;
@@ -74,22 +75,15 @@ typedef struct LambdaNode {
 	Node * body;
 } LambdaNode;
 
-typedef struct RefNode {
-	enum NodeType type;
-	unsigned int upn;
-	unsigned int offset;
-} RefNode;
-
 Node empty;
 
 Node * newSymbol(const char *);
 Node * newVector(unsigned int);
-Node * newStrLit(const char *, unsigned int);
+Node * newString(const char *, unsigned int);
 Node * newBool(bool);
 Node * newChar(char);
 Node * newComplex(const char *);
 Node * newLambda(Node *, Node *, Env *);
-Node * newRef(Symbol);
 
 unsigned int length(Node *);
 Node * polar2Cart(Node *);
@@ -100,9 +94,9 @@ bool equal(Node *, Node *);
 #define toSym(p) ((SymNode *)(p))
 #define toVec(p) ((VecNode *)(p))
 #define toBool(p) ((BoolNode *)(p))
-#define toNum(p) ((ComplexNode *)(p))
+#define toComplex(p) ((ComplexNode *)(p))
 #define toChar(p) ((CharNode *)(p))
-#define toString(p) ((StrLitNode *)(p))
+#define toString(p) ((StringNode *)(p))
 #define toLambda(p) ((LambdaNode *)(p))
 #define LIST1(a) cons((a), &empty)
 #define LIST2(a, b) cons((a), LIST1(b))
