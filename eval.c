@@ -38,13 +38,12 @@ Node * apply(Node * ff, Node * args) {
 }
 
 Node * eval(Node * expr, Env * env) {
-	return expr;
 	if (expr == NULL) {
 		return NULL;
 	}
 	switch (expr->type) {
 		case SYMBOL:
-			return lookup(env, toSym(car(expr))->sym);
+			return lookup(env, toSym(expr)->sym);
 		case PAIR:
 			error("cannot eval a pair");
 			abort();

@@ -19,7 +19,7 @@ static int isSpec(char ch) {
 	return 0;
 }
 
-Token nextToken() {
+static Token nextToken() {
 	static int ch = ' ';
 	Token ret;
 	while (isspace(ch)) {

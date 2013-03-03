@@ -121,20 +121,20 @@ there:
 	}
 }
 
-char mem[4096];
-Env * topEnv = (Env *)mem;
 int main(int argc, char * argv[]) {
 	if (argc == 2) {
 		freopen(argv[1], "r", stdin);
 	}
 	void initMacro();
 	initMacro();
-	topEnv->parent = NULL;
 	while (1) {
 		if (!setjmp(jmpBuff)) {
-			//eval(parse(), topEnv);
-			printNode(eval(parse(), topEnv));
-			printf("\n");
+			Node * node = parse();
+			Node * ret = eval(node, topEnv);
+			if (ret) {
+				printNode(ret);
+				printf("\n");
+			}
 		}
 	}
 	return 0;

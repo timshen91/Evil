@@ -13,6 +13,10 @@
 #define toMarg(p) ((MargNode *)(p))
 #define toMacro(p) ((Macro *)(p))
 #define toBuil(p) ((Builtin *)(p))
+#define LISTELL1(a) consEll((a), &empty)
+#define LISTELL2(a, b) consEll((a), LISTELL1((b)))
+#define LISTELL3(a, b, c) consEll((a), LISTELL2((b), (c)))
+#define LISTELL4(a, b, c, d) consEll((a), LISTELL3((b), (c), (d)))
 
 Node dummy = {.type = DUMMY};
 
@@ -43,6 +47,13 @@ Node * sliceFrameLast[4096];
 static unsigned int stack[2][4096];
 static int top[2];
 
+unsigned int lengthEll(Node * l) {
+	if (l->type != LISTELL) {
+		return 0;
+	}
+	return 1 + lengthEll(cdr(l));
+}
+
 static bool matchImpl(Node * p, Node * v) {
 	if (p->type == DUMMY) {
 		return true;
@@ -64,22 +75,22 @@ static bool matchImpl(Node * p, Node * v) {
 	} else if (p->type == LIST && v->type == LIST) {
 		DUMP("temp");
 		unsigned int plen = length(p);
-		unsigned int vlen = length(p);
+		unsigned int vlen = length(v);
 		PairNode * piter = toPair(p);
 		PairNode * viter = toPair(v);
 		if (plen != vlen) {
 			return false;
 		}
 		while (piter->type == LIST) {
-			if (matchImpl(piter->a, viter->a) != 0) {
+			if (!matchImpl(piter->a, viter->a)) {
 				return false;
 			}
 			piter = toPair(cdr(piter));
 			viter = toPair(cdr(viter));
 		}
 	} else if (p->type == LISTELL && v->type == LIST) {
-		unsigned int plen = length(p);
-		unsigned int vlen = length(p);
+		unsigned int plen = lengthEll(p);
+		unsigned int vlen = length(v);
 		if (plen - 1 > vlen) {
 			return false;
 		}
@@ -87,29 +98,29 @@ static bool matchImpl(Node * p, Node * v) {
 		PairNode * viter = toPair(v);
 		int i = 0;
 		for (i = 0; i < plen - 1; i++) {
-			if (matchImpl(piter->a, viter->a) != 0) {
+			if (!matchImpl(piter->a, viter->a)) {
 				return false;
 			}
 			piter = toPair(cdr(piter));
 			viter = toPair(cdr(viter));
 		}
 		for (; i < vlen; i++) {
-			viter = toPair(cdr(viter));
-			if (matchImpl(piter->a, viter->a) != 0) {
+			if (!matchImpl(piter->a, viter->a)) {
 				return false;
 			}
+			viter = toPair(cdr(viter));
 		}
 	} else if (p->type == PAIR && (v->type == PAIR || v->type == LIST)) {
 		DUMP("temp");
 		unsigned int plen = length(p);
-		unsigned int vlen = length(p);
+		unsigned int vlen = length(v);
 		PairNode * piter = toPair(p);
 		PairNode * viter = toPair(v);
-		if (plen >= vlen) {
+		if (plen > vlen) {
 			return false;
 		}
 		while (piter->type == PAIR) {
-			if (matchImpl(piter->a, viter->a) != 0) {
+			if (!matchImpl(piter->a, viter->a)) {
 				return false;
 			}
 			piter = toPair(cdr(piter));
@@ -126,7 +137,7 @@ static bool matchImpl(Node * p, Node * v) {
 		Node ** vp = toVec(p)->vec;
 		Node ** vv = toVec(v)->vec;
 		for (int i = 0; i < lenp; i++) {
-			if (matchImpl(vp[i], vv[i]) != 0) {
+			if (!matchImpl(vp[i], vv[i])) {
 				return false;
 			}
 		}
@@ -140,12 +151,12 @@ static bool matchImpl(Node * p, Node * v) {
 		Node ** vv = toVec(v)->vec;
 		int i;
 		for (i = 0; i < lenp - 1; i++) {
-			if (matchImpl(vp[i], vv[i]) != 0) {
+			if (!matchImpl(vp[i], vv[i])) {
 				return false;
 			}
 		}
 		for (; i < lenv; i++) {
-			if (matchImpl(vp[lenp - 1], vv[i]) != 0) {
+			if (!matchImpl(vp[lenp - 1], vv[i])) {
 				return false;
 			}
 		}
@@ -266,11 +277,11 @@ static void compilePattern(Node * lit, Node ** pp) {
 			break;
 		case FIX_LAMBDA:
 		case VAR_LAMBDA:
-		case MACRO:
 		case LISTELL:
 		case VECTORELL:
-		case MARG:
 		case BUILTIN:
+		case MACRO:
+		case MARG:
 			error("unreachable");
 			abort();
 			break;
@@ -486,7 +497,6 @@ Node * transform(Node * mac, Node * expr, Env * env) {
 }
 
 Node * defineSyntaxPattern;
-Node * syntaxRulesPattern;
 Node * lambdaPattern;
 Node * definePattern;
 Node * defineLambdaPattern;
@@ -503,7 +513,7 @@ Node * cbDefineSyntax(Node * expr, Env * env) {
 	Node * lit = frame[0];
 	Node * ps = sliceFrame[0];
 	Node * ts = sliceFrame[1];
-	if (lit->type != LIST) {
+	if (lit->type != LIST && lit->type != EMPTY) {
 		error("bad syntax");
 		abort();
 	}
@@ -517,11 +527,7 @@ Node * cbDefineSyntax(Node * expr, Env * env) {
 }
 
 Node * cbDefine(Node * expr, Env * env) {
-	if (match(definePattern, expr)) {
-		if (frame[0]->type != SYMBOL) {
-			error("bad syntax");
-			abort();
-		}
+	if (match(definePattern, expr) && frame[0]->type == SYMBOL) {
 		Symbol name = toSym(frame[0])->sym;
 		Node * body = frame[1];
 		updateEnv(env, name, eval(body, env));
@@ -542,7 +548,7 @@ Node * cbDefine(Node * expr, Env * env) {
 			abort();
 		}
 		updateEnv(env, name, ret);
-		return ret;
+		return NULL;
 	}
 	abort();
 	return NULL;
@@ -564,35 +570,35 @@ Node * cbLambda(Node * expr, Env * env) {
 	return ret;
 }
 
-Env * topEnv;
+Node * consEll(Node * a, Node * b) {
+	Node * ret = cons(a, b);
+	ret->type = LISTELL;
+	return ret;
+}
+
 void initMacro() {
 	// (`define-syntax` name
 	//   (`syntax-rules` lit
-	//                   (((DUMMY . ps) ts) ...)))
-	syntaxRulesPattern =
+	//                   ((DUMMY . ps) ts) ...))
+	defineSyntaxPattern =
 		LIST3(
 			&dummy,
-			newMarg(0, 0), // lit, should be a LIST
-			LIST2(
+			newMarg(1, 0), // name
+			LISTELL3(
+				newSymbol("syntax-rules"),
+				newMarg(0, 0), // lit, should be a LIST
 				LIST2(
 					cons(
 						&dummy,
 						newMarg(0, 1) // ps ...
 					),
 					newMarg(1, 1) // ts ...
-				),
-				newSymbol("...")
+				)
 			)
-		);
-	defineSyntaxPattern =
-		LIST3(
-			&dummy,
-			newMarg(1, 0), // name
-			syntaxRulesPattern
 		);
 	// (`lambda` formal body0 body1 ...)
 	lambdaPattern =
-		LIST4(
+		LISTELL4(
 			&dummy,
 			newMarg(0, 0), // formal
 			newMarg(1, 0), // body0
@@ -607,7 +613,7 @@ void initMacro() {
 		);
 	// (`define` formal body0 body1 ...)
 	defineLambdaPattern =
-		LIST4(
+		LISTELL4(
 			&dummy,
 			cons(
 				newMarg(0, 0), // name
@@ -616,7 +622,6 @@ void initMacro() {
 			newMarg(2, 0), // body0
 			newMarg(0, 1) // body1 ...
 		);
-			
 	updateEnv(topEnv, getSym("define-syntax"), newBuiltin(cbDefineSyntax));
 	updateEnv(topEnv, getSym("define"), newBuiltin(cbDefine));
 	updateEnv(topEnv, getSym("lambda"), newBuiltin(cbLambda));

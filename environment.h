@@ -4,11 +4,9 @@
 #include "symbol.h"
 
 typedef struct Node Node;
+typedef struct Env Env;
 
-typedef struct Env {
-	struct Env * parent;
-} Env;
-
+Env * topEnv;
 Env * newEnv(Env *);
 void updateEnv(Env * env, Symbol sym, Node * value);
 Node * lookup(Env * env, Symbol sym);
