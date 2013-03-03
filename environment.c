@@ -2,6 +2,10 @@
 #include "environment.h"
 #include "structure.h"
 
+Env * newEnv(Env * env) { // TODO
+	return NULL;
+}
+
 void updateEnv(Env * env, Symbol sym, Node * value) { // TODO
 }
 

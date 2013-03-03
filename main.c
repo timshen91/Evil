@@ -97,10 +97,10 @@ there:
 			}
 			printf("\"");
 			break;
-		case LIST_LAMBDA:
+		case FIX_LAMBDA:
 			printf("{LAMBDA}");
 			break;
-		case PAIR_LAMBDA:
+		case VAR_LAMBDA:
 			printf("{LAMBDA}");
 			break;
 		case MARG:
@@ -113,7 +113,7 @@ there:
 			printf("{VECTORELL}");
 			break;
 		case MACRO:
-			printf("{MACRO_DEF}"); // TODO
+			printf("{MACRO_DEF}");
 			break;
 		case BUILTIN:
 			printf("{BUILTIN}");

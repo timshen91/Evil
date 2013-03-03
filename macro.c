@@ -38,8 +38,8 @@ typedef struct Builtin {
 } Builtin;
 
 Node * frame[4096] = {0};
-Node * sliceFrame[4096] = {0};
-Node * sliceFrameLast[4096] = {0};
+Node * sliceFrame[4096];
+Node * sliceFrameLast[4096];
 static unsigned int stack[2][4096];
 static int top[2];
 
@@ -53,9 +53,9 @@ static bool matchImpl(Node * p, Node * v) {
 			stack[0][top[0]++] = offset;
 			frame[offset] = v;
 		} else {
-			if (sliceFrame[offset] == NULL) {
+			if (sliceFrame[offset] == &empty) {
 				stack[1][top[1]++] = offset;
-				sliceFrame[offset] = sliceFrameLast[offset] = cons(v, NULL);
+				sliceFrame[offset] = sliceFrameLast[offset] = cons(v, &empty);
 			} else {
 				assert(cdr(sliceFrameLast[offset])->type == EMPTY);
 				sliceFrameLast[offset] = cdr(sliceFrameLast[offset]) = LIST1(v);
@@ -163,7 +163,7 @@ bool match(Node * p, Node * v) {
 	}
 	while (top[1] > 0) {
 		top[1]--;
-		sliceFrame[stack[0][top[1]]] = sliceFrameLast[stack[0][top[1]]] = NULL;
+		sliceFrame[stack[0][top[1]]] = sliceFrameLast[stack[0][top[1]]] = &empty;
 	}
 	return matchImpl(p, v);
 }
@@ -264,8 +264,8 @@ static void compilePattern(Node * lit, Node ** pp) {
 		case CHAR:
 		case STRING:
 			break;
-		case LIST_LAMBDA:
-		case PAIR_LAMBDA:
+		case FIX_LAMBDA:
+		case VAR_LAMBDA:
 		case MACRO:
 		case LISTELL:
 		case VECTORELL:
@@ -346,8 +346,8 @@ static void compileTemplate(Node ** tt, Env * env) {
 		case STRING:
 			break;
 		case DUMMY:
-		case LIST_LAMBDA:
-		case PAIR_LAMBDA:
+		case FIX_LAMBDA:
+		case VAR_LAMBDA:
 		case MACRO:
 		case LISTELL:
 		case VECTORELL:
@@ -400,7 +400,7 @@ Node * render(Node * t, Env * env) {
 				Node * item = render(car(iter), env);
 				if (car(iter)->type == MARG && toMarg(car(iter))->depth > 0) {
 					*lst = item;
-					while (*lst != NULL) {
+					while (*lst != &empty) {
 						cdr(*lst)->type = PAIR;
 						lst = &cdr(*lst);
 					}
@@ -420,7 +420,7 @@ Node * render(Node * t, Env * env) {
 				Node * item = render(car(iter), env);
 				if (car(iter)->type == MARG && toMarg(car(iter))->depth > 0) {
 					*lst = item;
-					while (*lst != NULL) {
+					while (*lst != &empty) {
 						cdr(*lst)->type = LIST;
 						lst = &cdr(*lst);
 					}
@@ -440,7 +440,7 @@ Node * render(Node * t, Env * env) {
 				Node * item = render(iter, env);
 				if (iter->type == MARG && toMarg(iter)->depth > 0) {
 					Node * lst = item;
-					while (lst != NULL) {
+					while (lst != &empty) {
 						buff[top++] = car(lst);
 						lst = cdr(lst);
 					}
@@ -458,8 +458,8 @@ Node * render(Node * t, Env * env) {
 		case COMPLEX:
 		case CHAR:
 		case STRING:
-		case LIST_LAMBDA:
-		case PAIR_LAMBDA:
+		case FIX_LAMBDA:
+		case VAR_LAMBDA:
 		case MACRO:
 		case BUILTIN:
 			return t;
@@ -620,4 +620,8 @@ void initMacro() {
 	updateEnv(topEnv, getSym("define-syntax"), newBuiltin(cbDefineSyntax));
 	updateEnv(topEnv, getSym("define"), newBuiltin(cbDefine));
 	updateEnv(topEnv, getSym("lambda"), newBuiltin(cbLambda));
+	for (int i = 0; i < sizeof(sliceFrame) / sizeof(*sliceFrame); i++) {
+		sliceFrame[i] = &empty;
+		sliceFrameLast[i] = &empty;
+	}
 }

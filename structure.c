@@ -265,8 +265,24 @@ Node * polar2Cart(Node * a) { // TODO
 	return a;
 }
 
-Node * newLambda(Node * formal, Node * body, Env * env) { // TODO
-	return NULL;
+Node * newLambda(Node * formal, Node * body, Env * env) {
+	Node * iter = formal;
+	for (; iter->type == LIST || iter->type == PAIR; iter = cdr(iter)) {
+		if (car(iter)->type != SYMBOL) {
+			return NULL;
+		}
+	}
+	if (iter->type != EMPTY) {
+		if (iter->type != SYMBOL) {
+			return NULL;
+		}
+	}
+	LambdaNode * ret = alloc(sizeof(LambdaNode));
+	ret->type = (formal->type == SYMBOL || formal->type == PAIR) ? VAR_LAMBDA : FIX_LAMBDA;
+	ret->formal = formal;
+	ret->env = env;
+	ret->body = body;
+	return (Node *)ret;
 }
 
 bool equal(Node * a, Node * b) {
@@ -305,8 +321,8 @@ bool equal(Node * a, Node * b) {
 				return false;
 			}
 			return memcmp(toString(a)->str, toString(b)->str, toString(a)->len) == 0;
-		case LIST_LAMBDA:
-		case PAIR_LAMBDA:
+		case FIX_LAMBDA:
+		case VAR_LAMBDA:
 			return a == b;
 		default:
 			return false;

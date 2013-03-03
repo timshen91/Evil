@@ -6,17 +6,42 @@
 #include "error.h"
 #include "environment.h"
 
-Node * apply(Node * f, Node * args) {
-	if (f->type != LIST_LAMBDA && f->type != PAIR_LAMBDA) {
+Node * apply(Node * ff, Node * args) {
+	if (ff->type != FIX_LAMBDA && ff->type != VAR_LAMBDA) {
 		error("not callable");
 		abort();
 	}
-	// TODO
-	return NULL;
+	LambdaNode * f = toLambda(ff);
+	unsigned int argsLen = length(f->formal);
+	unsigned int len = length(args);
+	if ((f->type == FIX_LAMBDA && argsLen != len) || argsLen > len) {
+		error("arguments mismatch");
+		abort();
+	}
+	Env * env = newEnv(toLambda(f)->env);
+	Node * fiter = f->formal;
+	Node * aiter = args;
+	while (fiter->type == LIST || fiter->type == PAIR) {
+		updateEnv(env, toSym(car(fiter))->sym, car(aiter));
+		fiter = cdr(fiter);
+		aiter = cdr(aiter);
+	}
+	if (f->type == VAR_LAMBDA) {
+		updateEnv(env, toSym(fiter)->sym, aiter);
+	}
+	Node * biter = f->body;
+	Node * last;
+	for (; biter->type == LIST; biter = cdr(biter)) {
+		last = eval(car(biter), env);
+	}
+	return last;
 }
 
 Node * eval(Node * expr, Env * env) {
 	return expr;
+	if (expr == NULL) {
+		return NULL;
+	}
 	switch (expr->type) {
 		case SYMBOL:
 			return lookup(env, toSym(car(expr))->sym);
@@ -46,8 +71,8 @@ Node * eval(Node * expr, Env * env) {
 		case COMPLEX:
 		case CHAR:
 		case STRING:
-		case LIST_LAMBDA:
-		case PAIR_LAMBDA:
+		case FIX_LAMBDA:
+		case VAR_LAMBDA:
 		case MACRO:
 		case BUILTIN:
 			return expr;

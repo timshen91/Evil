@@ -9,6 +9,7 @@ typedef struct Env {
 	struct Env * parent;
 } Env;
 
+Env * newEnv(Env *);
 void updateEnv(Env * env, Symbol sym, Node * value);
 Node * lookup(Env * env, Symbol sym);
 

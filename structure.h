@@ -14,8 +14,8 @@ enum NodeType {
 	COMPLEX,
 	CHAR,
 	STRING,
-	LIST_LAMBDA,
-	PAIR_LAMBDA,
+	FIX_LAMBDA,
+	VAR_LAMBDA,
 	MACRO,
 	BUILTIN,
 // macro,
@@ -70,7 +70,7 @@ typedef struct ComplexNode {
 typedef struct Env Env;
 typedef struct LambdaNode {
 	enum NodeType type;
-	unsigned int envLen;
+	Node * formal;
 	Env * env;
 	Node * body;
 } LambdaNode;
