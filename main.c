@@ -6,6 +6,7 @@
 #include "symbol.h"
 #include "eval.h"
 #include "error.h"
+#include "complex.h"
 #include "environment.h"
 
 jmp_buf jmpBuff;
@@ -79,15 +80,27 @@ there:
 			printf(")");
 		case BOOL:
 			DUMP("temp");
-			printf("%s", (((BoolNode *)node)->value) ? "#t" : "#f");
+			printf("%s", toBool(node)->value ? "#t" : "#f");
 			break;
 		case COMPLEX:
 			DUMP("temp");
-			printf("{COMPLEX}");
+			if (toComplex(node)->exact) {
+				if (toComplex(node)->de != 1) {
+					printf("%lld/%lld", toComplex(node)->nu, toComplex(node)->de);
+				} else {
+					printf("%lld", toComplex(node)->nu);
+				}
+			} else {
+				if (toComplex(node)->im) {
+					printf("%lf-%lfi", toComplex(node)->re, -toComplex(node)->im);
+				} else {
+					printf("%lf+%lfi", toComplex(node)->re, toComplex(node)->im);
+				}
+			}
 			break;
 		case CHAR:
 			DUMP("temp");
-			printf("%c", ((CharNode *)node)->value);
+			printf("%c", toChar(node)->value);
 			break;
 		case STRING:
 			DUMP("temp");

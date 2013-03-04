@@ -4,6 +4,7 @@
 #include <assert.h>
 #include "parse.h"
 #include "structure.h"
+#include "complex.h"
 #include "symbol.h"
 #include "error.h"
 
@@ -223,8 +224,7 @@ Node * parse() {
 				assert(len < 4096);
 				v[len++] = now;
 			}
-			Node * ret = newVector(len);
-			memcpy(toVec(ret)->vec, v, sizeof(Node *) * len);
+			Node * ret = newVector(v, len);
 			return ret;
 		}
 	}

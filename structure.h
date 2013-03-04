@@ -44,13 +44,13 @@ typedef struct PairNode {
 typedef struct VecNode {
 	enum NodeType type;
 	unsigned int len;
-	Node * vec[];
+	Node ** vec;
 } VecNode;
 
 typedef struct StringNode {
 	enum NodeType type;
 	unsigned int len;
-	char str[];
+	char * str;
 } StringNode;
 
 typedef struct BoolNode {
@@ -63,8 +63,20 @@ typedef struct CharNode {
 	char value;
 } CharNode;
 
+typedef long long Integer;
+typedef double Real;
+
 typedef struct ComplexNode {
 	enum NodeType type;
+	bool exact;
+	union {
+		struct {
+			Integer nu, de;
+		};
+		struct {
+			Real re, im;
+		};
+	};
 } ComplexNode;
 
 typedef struct Env Env;
@@ -78,15 +90,13 @@ typedef struct LambdaNode {
 Node empty;
 
 Node * newSymbol(const char *);
-Node * newVector(unsigned int);
+Node * newVector(Node **, unsigned int);
 Node * newString(const char *, unsigned int);
 Node * newBool(bool);
 Node * newChar(char);
-Node * newComplex(const char *);
 Node * newLambda(Node *, Node *, Env *);
 
 unsigned int length(Node *);
-Node * polar2Cart(Node *);
 Node * cons(Node *, Node *);
 bool equal(Node *, Node *);
 
@@ -94,7 +104,6 @@ bool equal(Node *, Node *);
 #define toSym(p) ((SymNode *)(p))
 #define toVec(p) ((VecNode *)(p))
 #define toBool(p) ((BoolNode *)(p))
-#define toComplex(p) ((ComplexNode *)(p))
 #define toChar(p) ((CharNode *)(p))
 #define toString(p) ((StringNode *)(p))
 #define toLambda(p) ((LambdaNode *)(p))

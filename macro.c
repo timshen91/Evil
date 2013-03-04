@@ -459,8 +459,7 @@ Node * render(Node * t, Env * env) {
 					buff[top++] = item;
 				}
 			}
-			Node * ret = newVector(top);
-			memcpy(toVec(ret)->vec, buff, sizeof(Node *) * top);
+			Node * ret = newVector(buff, top);
 			return ret;
 		}
 		case SYMBOL:
