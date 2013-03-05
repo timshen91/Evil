@@ -384,7 +384,7 @@ Node * newMacro(Node * lit, Node * ps, Node * ts, Env * env) {
 
 Node * render(Node * t, Env * env) {
 	switch (t->type) {
-		case MARG: // FIXME : not hygiene
+		case MARG: // TODO : hygiene
 			if (toMarg(t)->depth > 0) {
 				return sliceFrame[toMarg(t)->offset];
 			}
