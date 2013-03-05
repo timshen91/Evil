@@ -3,8 +3,7 @@
 #include "memory.h"
 #include "symbol.h"
 #include "structure.h"
-
-Node empty = {.type = EMPTY};
+#include "complex.h"
 
 Node * newSymbol(const char * s) {
 	SymNode * ret = alloc(sizeof(SymNode));
@@ -16,7 +15,7 @@ Node * newSymbol(const char * s) {
 
 Node * newVector(Node ** vec, unsigned int len) {
 	VecNode * ret = alloc(sizeof(VecNode));
-	ret->vec = alloc(len * sizeof(Node *));
+	ret->vec = alloc(sizeof(Node *) * len);
 	memcpy(ret->vec, vec, sizeof(Node *) * len);
 	ret->type = VECTOR;
 	ret->len = len;
@@ -25,7 +24,7 @@ Node * newVector(Node ** vec, unsigned int len) {
 
 Node * newString(const char * s, unsigned int len) {
 	StringNode * ret = alloc(sizeof(StringNode));
-	ret->str = alloc(len);
+	ret->str = alloc((size_t)len);
 	memcpy(ret->str, s, len);
 	ret->type = STRING;
 	ret->len = len;
@@ -33,10 +32,11 @@ Node * newString(const char * s, unsigned int len) {
 }
 
 Node * newBool(bool b) {
-	BoolNode * ret = alloc(sizeof(BoolNode));
-	ret->type = BOOL;
-	ret->value = b;
-	return (Node *)ret;
+	if (b) {
+		return &boolTrue;
+	} else {
+		return &boolFalse;
+	}
 }
 
 Node * newChar(char ch) {
@@ -104,9 +104,12 @@ bool equal(Node * a, Node * b) {
 			return 1;
 		}
 		case BOOL:
-			return toBool(a)->value == toBool(b)->value;
-		case COMPLEX:
-			return false; // TODO
+			return a == b;
+		case COMPLEX: // FIXME
+			if (toComplex(a)->exact && toComplex(b)->exact) {
+				return toComplex(a)->nu == toComplex(b)->nu && toComplex(a)->de == toComplex(b)->de;
+			}
+			return toComplex(a)->nu / toComplex(a)->de == toComplex(b)->nu / toComplex(b)->de;
 		case CHAR:
 			return toChar(a)->value == toChar(b)->value;
 		case STRING:

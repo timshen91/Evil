@@ -5,11 +5,16 @@
 #include "macro.h"
 #include "error.h"
 #include "environment.h"
+#include "builtin.h"
 
 Node * apply(Node * ff, Node * args) {
-	if (ff->type != FIX_LAMBDA && ff->type != VAR_LAMBDA) {
+	if (ff->type != FIX_LAMBDA && ff->type != VAR_LAMBDA && ff->type != BUI_LAMBDA) {
+		printf("%d\n", ff->type);
 		error("not callable");
 		abort();
+	}
+	if (ff->type == BUI_LAMBDA) {
+		return callBuiltinLambda(ff, args);
 	}
 	LambdaNode * f = toLambda(ff);
 	unsigned int argsLen = length(f->formal);
@@ -50,13 +55,15 @@ Node * eval(Node * expr, Env * env) {
 			break;
 		case LIST: {
 			Node * first = eval(car(expr), env);
-			if (first->type == MACRO || first->type == BUILTIN) {
+			if (first->type == MACRO || first->type == BUILTIN_MAC) {
 				Node * ret = transform(first, expr, env);
 				return eval(ret, env);
 			} else {
 				Node * args = &empty;
+				Node ** last = &args;
 				for (Node * iter = cdr(expr); iter->type == LIST; iter = cdr(iter)) {
-					args = cons(eval(iter, env), args);
+					*last = cons(eval(car(iter), env), &empty);
+					last = &cdr(*last);
 				}
 				return apply(first, args);
 			}
@@ -73,7 +80,9 @@ Node * eval(Node * expr, Env * env) {
 		case FIX_LAMBDA:
 		case VAR_LAMBDA:
 		case MACRO:
-		case BUILTIN:
+		case BUILTIN_MAC:
+		case BUI_LAMBDA:
+		case UNSPECIFIED:
 			return expr;
 		case DUMMY:
 		case LISTELL:

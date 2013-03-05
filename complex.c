@@ -16,13 +16,23 @@ Integer gcd(Integer a, Integer b) {
 	return gcd(b, a % b);
 }
 
+void reduce(ComplexNode * ret) {
+	Integer g = gcd(ABS(ret->nu), ABS(ret->de));
+	ret->nu /= g;
+	ret->de /= g;
+}
+
 ComplexNode * makeRational(Integer a, Integer b) {
 	ComplexNode * ret = alloc(sizeof(ComplexNode));
 	ret->type = COMPLEX;
 	ret->exact = true;
-	Integer g = gcd(ABS(a), ABS(b));
-	ret->nu = a / g;
-	ret->de = b / g;
+	if (b < 0) {
+		b = -b;
+		a = -a;
+	}
+	ret->nu = a;
+	ret->de = b;
+	reduce(ret);
 	return ret;
 }
 
@@ -109,7 +119,6 @@ static Integer getInt() {
 }
 
 static ComplexNode * getReal() {
-	const char * start = cur;
 	int sign = 1;
 	if (*cur == '+') {
 		sign = 1;
@@ -118,6 +127,7 @@ static ComplexNode * getReal() {
 		sign = -1;
 		cur++;
 	}
+	const char * start = cur;
 	Integer a = getInt();
 	Integer b;
 	if (!succ) {
@@ -142,7 +152,7 @@ decimal:
 	bool hasInt = false;
 	bool hasHash = false;
 	a = 0;
-	b = 0;
+	b = 1;
 	int digit;
 	while ((digit = getDigit(*cur)) >= 0) {
 		hasInt = true;
@@ -154,21 +164,38 @@ decimal:
 		cur++;
 		a = a * radix;
 	}
-	if (hasHash) {
-		if (*cur == '.') {
-			while (*cur == '#') {
+	if (!hasHash) {
+		if (hasInt) {
+			if (*cur == '.') {
+				while ((digit = getDigit(*cur)) >= 0) {
+					cur++;
+					b = b * radix + digit;
+				}
+				while (*cur == '#') {
+					cur++;
+				}
+			}
+		} else {
+			if (*cur != '.') {
+				succ = false;
+				return NULL;
+			}
+			cur++;
+			if (!isdigit(*cur)) {
+				succ = false;
+				return NULL;
+			}
+			while ((digit = getDigit(*cur)) >= 0) {
 				cur++;
+				b = b * radix + digit;
 			}
 		}
-	} else if (*cur == '.') {
-		cur++;
-		if (!hasInt && !isdigit(*cur)) {
-			succ = false;
-			return NULL;
-		}
-		while ((digit = getDigit(*cur)) >= 0) {
+	} else if (!hasInt) {
+		succ = false;
+		return NULL;
+	} else {
+		while (*cur == '#') {
 			cur++;
-			b = b * radix + digit;
 		}
 	}
 	if (isExpo(*cur)) {
@@ -288,10 +315,12 @@ Node * newComplex(const char * start) {
 		radix = 10;
 	}
 	ComplexNode * ret = parseComplex(start);
-	if (exact == 1 && ret->exact == 0) {
-		exact2inexact(ret);
-	} else if (exact == 0 && ret->exact == 1) {
-		inexact2exact(ret);
+	if (ret != NULL) {
+		if (exact == 1 && ret->exact == 0) {
+			exact2inexact(ret);
+		} else if (exact == 0 && ret->exact == 1) {
+			inexact2exact(ret);
+		}
 	}
 	return (Node *)ret;
 }

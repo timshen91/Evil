@@ -16,9 +16,11 @@ enum NodeType {
 	STRING,
 	FIX_LAMBDA,
 	VAR_LAMBDA,
+	BUI_LAMBDA,
 	MACRO,
-	BUILTIN,
+	UNSPECIFIED,
 // macro,
+	BUILTIN_MAC,
 	DUMMY,
 	LISTELL,
 	VECTORELL,
@@ -53,31 +55,10 @@ typedef struct StringNode {
 	char * str;
 } StringNode;
 
-typedef struct BoolNode {
-	enum NodeType type;
-	bool value;
-} BoolNode;
-
 typedef struct CharNode {
 	enum NodeType type;
 	char value;
 } CharNode;
-
-typedef long long Integer;
-typedef double Real;
-
-typedef struct ComplexNode {
-	enum NodeType type;
-	bool exact;
-	union {
-		struct {
-			Integer nu, de;
-		};
-		struct {
-			Real re, im;
-		};
-	};
-} ComplexNode;
 
 typedef struct Env Env;
 typedef struct LambdaNode {
@@ -88,6 +69,8 @@ typedef struct LambdaNode {
 } LambdaNode;
 
 Node empty;
+Node boolTrue;
+Node boolFalse;
 
 Node * newSymbol(const char *);
 Node * newVector(Node **, unsigned int);
@@ -95,6 +78,9 @@ Node * newString(const char *, unsigned int);
 Node * newBool(bool);
 Node * newChar(char);
 Node * newLambda(Node *, Node *, Env *);
+Node * newMarg(unsigned int, unsigned int);
+Node * newMacro(Node * lit, Node * ps, Node * ts, Env * env);
+Node * newComplex(const char *);
 
 unsigned int length(Node *);
 Node * cons(Node *, Node *);
@@ -103,10 +89,13 @@ bool equal(Node *, Node *);
 #define toPair(p) ((PairNode *)(p))
 #define toSym(p) ((SymNode *)(p))
 #define toVec(p) ((VecNode *)(p))
-#define toBool(p) ((BoolNode *)(p))
 #define toChar(p) ((CharNode *)(p))
 #define toString(p) ((StringNode *)(p))
+#define toComplex(p) ((ComplexNode *)(p))
+#define toMarg(p) ((MargNode *)(p))
+#define toMacro(p) ((Macro *)(p))
 #define toLambda(p) ((LambdaNode *)(p))
+#define toBuiLambda(p) ((BuiltinLambda *)(p))
 #define LIST1(a) cons((a), &empty)
 #define LIST2(a, b) cons((a), LIST1(b))
 #define LIST3(a, b, c) cons((a), LIST2((b), (c)))

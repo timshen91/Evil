@@ -8,15 +8,9 @@
 #include "error.h"
 #include "environment.h"
 #include "eval.h"
+#include "builtin.h"
 
 #define isEllipsis(node) ((node)->type == SYMBOL && toSym(node)->sym == getSym("..."))
-#define toMarg(p) ((MargNode *)(p))
-#define toMacro(p) ((Macro *)(p))
-#define toBuil(p) ((Builtin *)(p))
-#define LISTELL1(a) consEll((a), &empty)
-#define LISTELL2(a, b) consEll((a), LISTELL1((b)))
-#define LISTELL3(a, b, c) consEll((a), LISTELL2((b), (c)))
-#define LISTELL4(a, b, c, d) consEll((a), LISTELL3((b), (c), (d)))
 
 Node dummy = {.type = DUMMY};
 
@@ -35,11 +29,6 @@ typedef struct Macro {
 		Node * tmpl;
 	} rules[];
 } Macro;
-
-typedef struct Builtin {
-	enum NodeType type;
-	Node * (*f)(Node *, Env *);
-} Builtin;
 
 Node * frame[4096] = {0};
 Node * sliceFrame[4096];
@@ -274,12 +263,14 @@ static void compilePattern(Node * lit, Node ** pp) {
 		case COMPLEX:
 		case CHAR:
 		case STRING:
+		case UNSPECIFIED:
 			break;
 		case FIX_LAMBDA:
 		case VAR_LAMBDA:
 		case LISTELL:
 		case VECTORELL:
-		case BUILTIN:
+		case BUILTIN_MAC:
+		case BUI_LAMBDA:
 		case MACRO:
 		case MARG:
 			error("unreachable");
@@ -355,6 +346,7 @@ static void compileTemplate(Node ** tt, Env * env) {
 		case COMPLEX:
 		case CHAR:
 		case STRING:
+		case UNSPECIFIED:
 			break;
 		case DUMMY:
 		case FIX_LAMBDA:
@@ -363,7 +355,8 @@ static void compileTemplate(Node ** tt, Env * env) {
 		case LISTELL:
 		case VECTORELL:
 		case MARG:
-		case BUILTIN:
+		case BUILTIN_MAC:
+		case BUI_LAMBDA:
 			error("unreachable");
 			abort();
 			break;
@@ -386,13 +379,6 @@ Node * newMacro(Node * lit, Node * ps, Node * ts, Env * env) {
 		ret->rules[i].ptrn = car(ps);
 		ret->rules[i].tmpl = car(ts);
 	}
-	return (Node *)ret;
-}
-
-Node * newBuiltin(Node * (*f)(Node *, Env *)) {
-	Builtin * ret = alloc(sizeof(Builtin));
-	ret->type = BUILTIN;
-	ret->f = f;
 	return (Node *)ret;
 }
 
@@ -471,7 +457,9 @@ Node * render(Node * t, Env * env) {
 		case FIX_LAMBDA:
 		case VAR_LAMBDA:
 		case MACRO:
-		case BUILTIN:
+		case BUILTIN_MAC:
+		case BUI_LAMBDA:
+		case UNSPECIFIED:
 			return t;
 		case DUMMY:
 		case LISTELL:
@@ -480,11 +468,13 @@ Node * render(Node * t, Env * env) {
 			abort();
 			break;
 	}
+	assert(0);
+	return NULL;
 }
 
 Node * transform(Node * mac, Node * expr, Env * env) {
-	if (mac->type == BUILTIN) {
-		return toBuil(mac)->f(expr, env);
+	if (mac->type == BUILTIN_MAC) {
+		return callBuiltinMac(mac, expr, env);
 	}
 	for (int i = 0; i < toMacro(mac)->ruleLen; i++) {
 		if (match(toMacro(mac)->rules[i].ptrn, expr)) {
@@ -493,139 +483,4 @@ Node * transform(Node * mac, Node * expr, Env * env) {
 	}
 	abort();
 	return NULL;
-}
-
-Node * defineSyntaxPattern;
-Node * lambdaPattern;
-Node * definePattern;
-Node * defineLambdaPattern;
-Node * cbDefineSyntax(Node * expr, Env * env) {
-	if (!match(defineSyntaxPattern, expr)) {
-		error("bad syntax");
-		abort();
-	}
-	if (frame[1]->type != SYMBOL) {
-		error("bad syntax");
-		abort();
-	}
-	Symbol name = toSym(frame[1])->sym;
-	Node * lit = frame[0];
-	Node * ps = sliceFrame[0];
-	Node * ts = sliceFrame[1];
-	if (lit->type != LIST && lit->type != EMPTY) {
-		error("bad syntax");
-		abort();
-	}
-	Node * ret;
-	if ((ret = newMacro(lit, ps, ts, env)) == NULL) {
-		error("bad syntax");
-		abort();
-	}
-	updateEnv(env, name, ret);
-	return NULL;
-}
-
-Node * cbDefine(Node * expr, Env * env) {
-	if (match(definePattern, expr) && frame[0]->type == SYMBOL) {
-		Symbol name = toSym(frame[0])->sym;
-		Node * body = frame[1];
-		updateEnv(env, name, eval(body, env));
-		return NULL;
-	}
-	if (match(defineLambdaPattern, expr)) {
-		if (frame[0]->type != SYMBOL) {
-			error("bad syntax");
-			abort();
-		}
-		Symbol name = toSym(frame[0])->sym;
-		Node * formal = frame[1];
-		Node * body0 = frame[2];
-		Node * body1 = sliceFrame[0];
-		Node * ret;
-		if ((ret = newLambda(formal, cons(body0, body1), env)) == NULL) {
-			error("invalid lambda construction");
-			abort();
-		}
-		updateEnv(env, name, ret);
-		return NULL;
-	}
-	abort();
-	return NULL;
-}
-
-Node * cbLambda(Node * expr, Env * env) {
-	if (!match(lambdaPattern, expr)) {
-		error("bad syntax");
-		abort();
-	}
-	Node * formal = frame[0];
-	Node * body0 = frame[1];
-	Node * body1 = sliceFrame[0];
-	Node * ret;
-	if ((ret = newLambda(formal, cons(body0, body1), env)) == NULL) {
-		error("invalid lambda construction");
-		abort();
-	}
-	return ret;
-}
-
-Node * consEll(Node * a, Node * b) {
-	Node * ret = cons(a, b);
-	ret->type = LISTELL;
-	return ret;
-}
-
-void initMacro() {
-	// (`define-syntax` name
-	//   (`syntax-rules` lit
-	//                   ((DUMMY . ps) ts) ...))
-	defineSyntaxPattern =
-		LIST3(
-			&dummy,
-			newMarg(1, 0), // name
-			LISTELL3(
-				newSymbol("syntax-rules"),
-				newMarg(0, 0), // lit, should be a LIST
-				LIST2(
-					cons(
-						&dummy,
-						newMarg(0, 1) // ps ...
-					),
-					newMarg(1, 1) // ts ...
-				)
-			)
-		);
-	// (`lambda` formal body0 body1 ...)
-	lambdaPattern =
-		LISTELL4(
-			&dummy,
-			newMarg(0, 0), // formal
-			newMarg(1, 0), // body0
-			newMarg(0, 1) // body1 ...
-		);
-	// (`define` symbol body)
-	definePattern =
-		LIST3(
-			&dummy,
-			newMarg(0, 0), // symbol
-			newMarg(1, 0) // body
-		);
-	// (`define` formal body0 body1 ...)
-	defineLambdaPattern =
-		LISTELL4(
-			&dummy,
-			cons(
-				newMarg(0, 0), // name
-				newMarg(1, 0) // formal
-			),
-			newMarg(2, 0), // body0
-			newMarg(0, 1) // body1 ...
-		);
-	updateEnv(topEnv, getSym("define-syntax"), newBuiltin(cbDefineSyntax));
-	updateEnv(topEnv, getSym("define"), newBuiltin(cbDefine));
-	updateEnv(topEnv, getSym("lambda"), newBuiltin(cbLambda));
-	for (int i = 0; i < sizeof(sliceFrame) / sizeof(*sliceFrame); i++) {
-		sliceFrame[i] = &empty;
-		sliceFrameLast[i] = &empty;
-	}
 }

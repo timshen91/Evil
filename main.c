@@ -8,6 +8,7 @@
 #include "error.h"
 #include "complex.h"
 #include "environment.h"
+#include "builtin.h"
 
 jmp_buf jmpBuff;
 
@@ -80,7 +81,7 @@ there:
 			printf(")");
 		case BOOL:
 			DUMP("temp");
-			printf("%s", toBool(node)->value ? "#t" : "#f");
+			printf("%s", node == &boolTrue ? "#t" : "#f");
 			break;
 		case COMPLEX:
 			DUMP("temp");
@@ -128,8 +129,12 @@ there:
 		case MACRO:
 			printf("{MACRO_DEF}");
 			break;
-		case BUILTIN:
-			printf("{BUILTIN}");
+		case BUILTIN_MAC:
+			printf("{BUILTIN_MAC}");
+		case BUI_LAMBDA:
+			printf("{BUI_LAMBDA}");
+		case UNSPECIFIED:
+			printf("{UNSPECIFIED}");
 			break;
 	}
 }
@@ -138,12 +143,12 @@ int main(int argc, char * argv[]) {
 	if (argc == 2) {
 		freopen(argv[1], "r", stdin);
 	}
-	void initMacro();
-	initMacro();
+	void initBuiltin();
+	initBuiltin();
 	while (1) {
 		if (!setjmp(jmpBuff)) {
 			Node * node = parse();
-			Node * ret = eval(node, topEnv);
+			Node * ret = eval(node, &topEnv);
 			if (ret) {
 				printNode(ret);
 				printf("\n");

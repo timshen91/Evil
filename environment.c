@@ -5,23 +5,17 @@
 #include "memory.h"
 #include "error.h"
 
-typedef struct Env {
-	struct Env * parent;
-	Node * mem[4096];
-} Env;
-
-Env top = {.parent = NULL, .mem = {0}};
-Env * topEnv = &top;
+Env topEnv = {.parent = NULL, .mem = {0}};
 
 Env * newEnv(Env * env) { // FIXME
 	Env * ret = alloc(sizeof(Env));
 	ret->parent = env;
-	memset(ret->mem, 0, sizeof(Env));
+	memset(ret->mem, 0, sizeof(ret->mem));
 	return ret;
 }
 
 void updateEnv(Env * env, Symbol sym, Node * value) { // FIXME
-	if (env != topEnv) {
+	if (env != &topEnv) {
 		if (env->mem[sym]) {
 			error("duplicate definition");
 			abort();
