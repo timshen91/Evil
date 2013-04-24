@@ -1,1 +1,5 @@
 An R5RS implementation.
+
+So far:
+make
+./Evil test.scm
