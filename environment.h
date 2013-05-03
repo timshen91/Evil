@@ -6,7 +6,7 @@
 typedef struct Node Node;
 typedef struct Env {
 	struct Env * parent;
-	Node * mem[4096];
+	Node * mem[4096]; // FIXME : THIS SLOW DOWN WHOLE INTERPRETER. Calculate a compile-time size instead.
 } Env;
 
 Env topEnv;
